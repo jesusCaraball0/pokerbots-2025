@@ -77,6 +77,238 @@ class Player(Bot):
         if opponent_bounty_hit:
             print("Opponent hit their bounty of " + opponent_bounty_rank + "!")
 
+    def get_hand_strenth(self, my_cards, board_cards):
+        '''
+        Called when deciding action, gauges strength of current hand.
+
+        Arguments: my_cards -> player-specific cards board_cards -> community cards
+
+        Returns:
+        strong: current hand is good, medium: current hand is OK, weak: current hand is bad
+        '''
+
+        # rank and suit variables
+        board_ranks = [card[0] for card in board_cards]
+        board_suits = [card[1] for card in board_cards]
+        my_ranks = [card[0] for card in my_cards]
+        my_suits = [card[1] for card in my_cards]
+        total_ranks = board_ranks + my_ranks
+        total_suits = board_suits + my_suits
+
+        # define functions for checking the type of hand
+        # royal flush
+        def check_royal_flush(total_ranks, total_suits):
+            suit = total_suits[0]
+            for other_suit in total_suits[1:]:
+                if other_suit != suit:
+                    return False
+            for letter in 'AKQJT':
+                if letter not in total_ranks:
+                    return False
+            return True
+        # straight flush
+        def check_straight_flush(total_ranks, total_suits):
+            if check_flush(total_ranks, total_suits) and check_straight(total_ranks, total_suits):
+                return True
+            return False
+        # four of a kind
+        def check_quads(total_ranks, total_suits):
+            equal_rank = max(total_ranks.count(total_ranks[0]), total_ranks.count(total_ranks[1]))
+            if equal_rank == 4:
+                return True
+            return False
+        # full house
+        def check_full_house(total_ranks, total_suits):
+            total_ranks.sort()
+            if total_ranks[0] == total_ranks[1]:
+                if total_ranks[3] == total_ranks[4]:
+                    if total_ranks[2] == total_ranks[0] or total_ranks[2] == total_ranks[4]:
+                        return True
+            return False
+        # flush
+        def check_flush(total_ranks, total_suits):
+            for suit in total_suits:
+                if suit != total_suits[0]:
+                    return False
+            return True
+        # straight
+        def check_straight(total_ranks, total_suits):
+            ranks = {'2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, 'T': 10, 'J': 11, 'Q': 12,
+                        'K': 13, 'A': 14}
+
+            if '2' in total_ranks:
+                ranks['A'] = 1
+
+            total_ranks = sorted(total_ranks, key=lambda item: ranks[item])
+            for i in range(len(total_ranks[1:])):
+                if ranks[total_ranks[i]] != ranks[total_ranks[i-1]] + 1:
+                    return False
+            return True
+        # three of a kind
+        def check_trips(total_ranks, total_suits):
+            total_ranks.sort()
+            # after sorting, trips can either be first 3 or last 3 elements
+            if total_ranks[0] == total_ranks[1]:
+                if total_ranks[0] == total_ranks[2]:
+                    return True
+            if total_ranks[2] == total_ranks[3]:
+                if total_ranks[3] == total_ranks[4]:
+                    return True
+            return False
+        # two pair
+        def check_two_pair(total_ranks, total_suits):
+            unique = set()
+            for rank in total_ranks:
+                unique.add(rank)
+            if len(unique) == 3:
+                return True
+            return False
+        # pair
+        def check_pair(total_ranks, total_suits):
+            unique = set()
+            for rank in total_ranks:
+                unique.add(rank)
+            if len(unique) == 4:
+                return True
+            return False
+
+        # pre-flop logic
+        if len(board_cards) == 0:
+            rank_sum = sum([ord(card) - 48 for card in my_ranks])
+            if rank_sum > 19 or my_suits[0] == my_suits[1]:
+                return "strong"
+            elif rank_sum >= 17:
+                return "medium"
+            else:
+                return "weak"
+
+        # flop logic
+        elif len(board_cards) == 3:
+
+            if check_royal_flush(total_ranks, total_suits):
+                return "strong"
+
+            elif check_straight_flush(total_ranks, total_suits):
+                return "strong"
+
+            elif check_quads(total_ranks, total_suits):
+                return "strong"
+
+            elif check_full_house(total_ranks, total_suits):
+                return "strong"
+
+            elif check_flush(total_ranks, total_suits):
+                return "strong"
+
+            elif check_straight(total_ranks, total_suits):
+                return "strong"
+
+            elif check_trips(total_ranks, total_suits):
+                return "strong"
+
+            elif check_two_pair(total_ranks, total_suits):
+                return "strong"
+
+            elif check_pair(total_ranks, total_suits):
+                pair_rank = ""
+                unique = set()
+                for rank in total_ranks:
+                    if rank in unique:
+                        pair_rank = rank
+                        break
+                    unique.add(rank)
+
+                if ord(pair_rank) - 48 >= 9:
+                    return "strong"
+                return "medium"
+
+            else:
+                return "weak"
+
+        # turn logic
+        elif len(board_cards) == 4:
+            if check_royal_flush(total_ranks, total_suits):
+                return "strong"
+
+            elif check_straight_flush(total_ranks, total_suits):
+                return "strong"
+
+            elif check_quads(total_ranks, total_suits):
+                return "strong"
+
+            elif check_full_house(total_ranks, total_suits):
+                return "strong"
+
+            elif check_flush(total_ranks, total_suits):
+                return "strong"
+
+            elif check_straight(total_ranks, total_suits):
+                return "strong"
+
+            elif check_trips(total_ranks, total_suits):
+                return "strong"
+
+            elif check_two_pair(total_ranks, total_suits):
+                return "strong"
+
+            elif check_pair(total_ranks, total_suits):
+                pair_rank = ""
+                unique = set()
+                for rank in total_ranks:
+                    if rank in unique:
+                        pair_rank = rank
+                        break
+                    unique.add(rank)
+
+                if ord(pair_rank) - 48 >= 9:
+                    return "medium"
+                return "weak"
+
+            else:
+                return "weak"
+
+        # river logic
+        else:
+            if check_royal_flush(total_ranks, total_suits):
+                return "strong"
+
+            elif check_straight_flush(total_ranks, total_suits):
+                return "strong"
+
+            elif check_quads(total_ranks, total_suits):
+                return "strong"
+
+            elif check_full_house(total_ranks, total_suits):
+                return "strong"
+
+            elif check_flush(total_ranks, total_suits):
+                return "strong"
+
+            elif check_straight(total_ranks, total_suits):
+                return "strong"
+
+            elif check_trips(total_ranks, total_suits):
+                return "strong"
+
+            elif check_two_pair(total_ranks, total_suits):
+                return "medium"
+
+            elif check_pair(total_ranks, total_suits):
+                pair_rank = ""
+                unique = set()
+                for rank in total_ranks:
+                    if rank in unique:
+                        pair_rank = rank
+                        break
+                    unique.add(rank)
+
+                if pair_rank in "AKQJ":
+                    return "medium"
+                return "weak"
+
+            else:
+                return "weak"
+
     def get_action(self, game_state, round_state, active):
         '''
         Where the magic happens - your code should implement this function.
@@ -104,47 +336,130 @@ class Player(Bot):
         opp_contribution = STARTING_STACK - opp_stack  # the number of chips your opponent has contributed to the pot
 
 
-        if RaiseAction in legal_actions:
-            min_raise, max_raise = round_state.raise_bounds()  # the smallest and largest numbers of chips for a legal bet/raise
-            min_cost = min_raise - my_pip  # the cost of a minimum bet/raise
-            max_cost = max_raise - my_pip  # the cost of a maximum bet/raise
 
-            card_one, card_two = my_cards
-            if (card_one[0] in ('AKQJT') and card_two[0] in ('AKQJT')) or card_one[1] == card_two[1]:
-                if RaiseAction in legal_actions:
-                    min_raise, max_raise = round_state.raise_bounds()
-                    raise_amount = int(min_raise + (max_raise - min_raise) * random.uniform(0, 1))
 
-                    if random.random() < 0.8:
-                        return RaiseAction(raise_amount)
-                elif CheckAction in legal_actions and random.random() < 0.5:
-                    return CheckAction()
-                elif random.random() < 0.01:
-                    return FoldAction()
+        strength = self.get_hand_strenth(my_cards, board_cards)
 
-            elif (ord(card_one[0]) - 48 >= 8 or ord(card_two[0]) - 48 >= 8):
+        # decide weather to RaiseAction, CallAction, CheckAction, or FoldAuction
+        if strength == 'strong':
+            if RaiseAction in legal_actions:
                 min_raise, max_raise = round_state.raise_bounds()
-                raise_amount = int(min_raise + (max_raise - min_raise)*random.uniform(0, 1)*.1)
+                raise_amount = int(min_raise + (max_raise - min_raise)*random.uniform(0, 1))
 
-                if random.random() < 0.4:
+                if my_cards[0][0] == my_bounty or my_cards[1][0] == my_bounty:
+                    return RaiseAction(max_raise)
+                elif random.random() < .8:
                     return RaiseAction(raise_amount)
-                elif CheckAction in legal_actions and random.random() < 0.5:
-                    return CheckAction()
-                elif random.random() < 0.4:
-                    return FoldAction()
-
+            if CallAction in legal_actions:
+                if random.random() < .95:
+                    return CallAction()
+            if CheckAction in legal_actions:
+                return CheckAction()
             else:
-                if CheckAction in legal_actions:
-                    return CheckAction()
-                elif random.random() < 0.5:
-                    return FoldAction()
+                return FoldAction()
 
-        if CallAction in legal_actions:
-            return CallAction()
-        elif CheckAction in legal_actions:
-            return CheckAction()
+        elif strength == 'medium':
+            if RaiseAction in legal_actions:
+                min_raise, max_raise = round_state.raise_bounds()
+                raise_amount = int(min_raise + (max_raise - min_raise) * random.uniform(0, 1) * .5)
+
+                if (my_cards[0][0] == my_bounty or my_cards[1][0] == my_bounty) and random.random() < .7:
+                    return RaiseAction(raise_amount)
+                elif random.random() < .4:
+                    return RaiseAction(raise_amount)
+            if CallAction in legal_actions:
+                if random.random() < 0.8:
+                    return CallAction()
+            if CheckAction in legal_actions:
+                return CheckAction()
+            else:
+                return FoldAction()
+        elif strength == 'weak':
+            # deal with weak hand
+            if RaiseAction in legal_actions:
+                min_raise, max_raise = round_state.raise_bounds()
+                raise_amount = int(min_raise + (max_raise - min_raise) * random.uniform(0, 1))
+
+                if (my_cards[0][0] == my_bounty or my_cards[1][0] == my_bounty) and random.random() < 0.5:
+                    return RaiseAction(raise_amount)
+                elif random.random() < 0.1:
+                    return RaiseAction(raise_amount)
+            if CallAction in legal_actions:
+                if random.random() < 0.05:
+                    return CallAction()
+            if CheckAction in legal_actions:
+                return CheckAction()
+            else:
+                return CallAction()
         else:
             return FoldAction()
+        # if len(board_cards) > 0:
+        #     card_one, card_two = my_cards
+        #     board_values = [card[0] for card in board_cards]
+        #     board_suits = [card[1] for card in board_cards]
+        #     if card_one[0] in board_values:
+        #         if RaiseAction in legal_actions:
+        #             min_raise, max_raise = round_state.raise_bounds()
+        #             raise_amount = int(min_raise + (max_raise - min_raise) * random.uniform(0, 1))
+
+        #             if random.random() < 0.8:
+        #                 if card_one[0] in ('AKQJT'):
+        #                     return RaiseAction(max_raise)
+        #                 elif ord(card_one[0] - 48 >= 8):
+        #                     return RaiseAction(raise_amount)
+        #                 else:
+        #                     return RaiseAction(min_raise)
+        #         if card_one[0] in ('AKQJT') and CallAction in legal_actions and random.random() < 0.7:
+        #             return CallAction()
+        #         elif CheckAction in legal_actions:
+        #             return CheckAction()
+        #         else:
+        #             return FoldAction()
+
+
+
+        # if RaiseAction in legal_actions:
+        #     min_raise, max_raise = round_state.raise_bounds()  # the smallest and largest numbers of chips for a legal bet/raise
+        #     min_cost = min_raise - my_pip  # the cost of a minimum bet/raise
+        #     max_cost = max_raise - my_pip  # the cost of a maximum bet/raise
+
+
+        #     card_one, card_two = my_cards
+        #     if (card_one[0] in ('AKQJT') and card_two[0] in ('AKQJT')) or card_one[1] == card_two[1]:
+        #         if RaiseAction in legal_actions:
+        #             min_raise, max_raise = round_state.raise_bounds()
+        #             raise_amount = int(min_raise + (max_raise - min_raise) * random.uniform(0, 1))
+
+        #             if random.random() < 0.8:
+        #                 return RaiseAction(raise_amount)
+        #         elif CheckAction in legal_actions and random.random() < 0.5:
+        #             return CheckAction()
+        #         elif random.random() < 0.01:
+        #             return FoldAction()
+
+        #     elif (ord(card_one[0]) - 48 >= 7 or ord(card_two[0]) - 48 >= 7):
+        #         min_raise, max_raise = round_state.raise_bounds()
+        #         raise_amount = int(min_raise + (max_raise - min_raise)*random.uniform(0, 1)*.1)
+
+        #         if random.random() < 0.4:
+        #             return RaiseAction(raise_amount)
+        #         elif CheckAction in legal_actions and random.random() < 0.5:
+        #             return CheckAction()
+        #         elif random.random() < 0.4:
+        #             return FoldAction()
+
+        #     else:
+        #         if CheckAction in legal_actions:
+        #             return CheckAction()
+        #         elif random.random() < 0.5:
+        #             return FoldAction()
+
+        # if CallAction in legal_actions and random.random() < .3:
+        #     return CallAction()
+        # elif CheckAction in legal_actions:
+        #     return CheckAction()
+        # else:
+        #     return FoldAction()
 
 
 if __name__ == '__main__':
