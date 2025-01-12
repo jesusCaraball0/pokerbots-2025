@@ -7,7 +7,7 @@ from skeleton.states import NUM_ROUNDS, STARTING_STACK, BIG_BLIND, SMALL_BLIND
 from skeleton.bot import Bot
 from skeleton.runner import parse_args, run_bot
 import eval7
-
+import time
 import random
 
 
@@ -26,7 +26,7 @@ class Player(Bot):
         Returns:
         Nothing.
         '''
-        pass
+        self.bounty_possibilities={0,1,2,3,4,5,6,7,8,9,10,11,12}#for opponent
 
     def handle_new_round(self, game_state, round_state, active):
         '''
@@ -64,11 +64,22 @@ class Player(Bot):
         previous_state = terminal_state.previous_state  # RoundState before payoffs
         #street = previous_state.street  # 0, 3, 4, or 5 representing when this round ended
         #my_cards = previous_state.hands[active]  # your cards
-        #opp_cards = previous_state.hands[1-active]  # opponent's cards or [] if not revealed
-
+        opp_cards = previous_state.hands[1-active]  # opponent's cards or [] if not revealed
+        round_num=game_state.round_num
         my_bounty_hit = terminal_state.bounty_hits[active]  # True if you hit bounty
         opponent_bounty_hit = terminal_state.bounty_hits[1-active] # True if opponent hit bounty
         bounty_rank = previous_state.bounties[active]  # your bounty rank
+        street=previous_state.street
+        board_cards = previous_state.deck[:street]
+        if(opponent_bounty_hit and opp_cards):
+            pos=set()
+            for card in opp_cards+board_cards:
+                pos.add(eval7.Card(card).rank)
+
+
+            self.bounty_possibilities=self.bounty_possibilities.intersection(pos)
+        if(round_num%25==0):
+            self.bounty_possibilities=set(range(0,13))
 
         # The following is a demonstration of accessing illegal information (will not work)
         #opponent_bounty_rank = previous_state.bounties[1-active]  # attempting to grab opponent's bounty rank
@@ -78,11 +89,13 @@ class Player(Bot):
         #if opponent_bounty_hit:
             #print("Opponent hit their bounty of " + opponent_bounty_rank + "!")
     def monte_carlo(self, my_cards, board_cards, my_bounty, pot_size ):
-        num_trials=110
+        init_time=time.time()
         winnings=0
+        num_trials=175
         my_cards=[eval7.Card(my_cards[0]),eval7.Card(my_cards[1])]
         board_cards=[eval7.Card(board) for board in board_cards]
-        for _ in range(num_trials):
+        #while(time.time()-init_time<55):
+        for i in range(num_trials):
             deck=eval7.Deck()
 
             deck.shuffle()
@@ -90,9 +103,21 @@ class Player(Bot):
                 deck.cards.remove(card)
             #deck.remove(my_cards)
             #Next three lines determine opponent's bounty
-            deck_opp_bounty=eval7.Deck()
-            deck_opp_bounty.shuffle()
-            opp_bounty=(deck_opp_bounty.peek(1)[0]).rank
+            # deck_opp_bounty=eval7.Deck()
+            # deck_opp_bounty.shuffle()
+            # i=0
+            # opp_bounty=0
+            # while(i<52-i and (deck_opp_bounty.peek(52-i)[i]).rank in self.bounty_possibilities):
+            #     deck_opp_bounty.cards.remove((deck_opp_bounty.peek(52-i)[i]))
+            #     i+=1
+            # if i==52-i:
+            #     opp_bounty=0
+            # else:
+            #     opp_bounty=deck_opp_bounty.peek(52-i)[i]
+            opp_bounty=random.choice(range(0,13))
+            if opp_bounty not in self.bounty_possibilities:
+                opp_bounty=-1
+
             opp_cards=deck.peek(2)
             full_board=board_cards+deck.peek(2+5-len(board_cards))[2:]
             self_val=eval7.evaluate(full_board+my_cards)
@@ -100,23 +125,25 @@ class Player(Bot):
             if self_val>opp_val:
                 bounty=False
                 for card in full_board+my_cards:
+                    print(card, card.rank)
                     if card.rank==my_bounty:
-                        winnings+=1.5*pot_size+10
+                        winnings+=((1.5*pot_size+10)-.5*pot_size)
                         bounty=True
                         break
                 if not bounty:
-                    winnings+=1*pot_size
+                    winnings+=.5*pot_size
             elif self_val<opp_val:
                 bounty=False
                 for card in full_board+opp_cards:
                     if card.rank==opp_bounty:
-                        winnings-=1.5*pot_size-10
+                        winnings-=((1.5*pot_size+10)-.5*pot_size)
                         bounty=True
                         break
                 if not bounty:
-                    winnings-=1*pot_size
+                    winnings-=.5*pot_size
             else:
-                winnings+=.5
+                pass
+                #winnings+=.5*pot_size
         #print(f"{winnings=}")
         return winnings/num_trials
 
@@ -156,6 +183,7 @@ class Player(Bot):
         # with open("output.txt","w") as file:
         #     file.write(exp_winnings)
         #print(exp_winnings)
+        #print(exp_winnings, opp_contribution)
         if exp_winnings>0:
             if RaiseAction in legal_actions:
                 return RaiseAction(min_raise)
