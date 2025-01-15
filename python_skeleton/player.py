@@ -174,10 +174,13 @@ class Player(Bot):
 
         # pre-flop logic
         if len(board_cards) == 0:
-            rank_sum = sum([ord(card) - 48 for card in my_ranks])
-            if rank_sum > 19 or my_suits[0] == my_suits[1]:
+            ranks = {'2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, 'T': 10, 'J': 11, 'Q': 12,
+                        'K': 13, 'A': 14}
+
+            rank_sum = ranks[my_cards[0][0]] + ranks[my_cards[1][0]]
+            if my_cards[0][0] in 'AKQJT' and my_cards[1][0] in 'AKQJT':
                 return "strong"
-            elif rank_sum >= 17:
+            elif rank_sum >= 19:
                 return "medium"
             else:
                 return "weak"
@@ -347,12 +350,15 @@ class Player(Bot):
                 raise_amount = int(min_raise + (max_raise - min_raise)*random.uniform(0, 1))
 
                 if my_cards[0][0] == my_bounty or my_cards[1][0] == my_bounty:
-                    return RaiseAction(max_raise)
-                elif random.random() < .8:
                     return RaiseAction(raise_amount)
+                if random.random() < .8:
+                    multiplier = random.random()
+                    return RaiseAction(raise_amount * multiplier)
+
             if CallAction in legal_actions:
                 if random.random() < .95:
                     return CallAction()
+
             if CheckAction in legal_actions:
                 return CheckAction()
             else:
@@ -363,103 +369,37 @@ class Player(Bot):
                 min_raise, max_raise = round_state.raise_bounds()
                 raise_amount = int(min_raise + (max_raise - min_raise) * random.uniform(0, 1) * .5)
 
-                if (my_cards[0][0] == my_bounty or my_cards[1][0] == my_bounty) and random.random() < .7:
+                if (my_cards[0][0] == my_bounty or my_cards[1][0] == my_bounty) and random.random() < 0.4:
                     return RaiseAction(raise_amount)
-                elif random.random() < .4:
+                elif random.random() < 0.2:
                     return RaiseAction(raise_amount)
+
             if CallAction in legal_actions:
                 if random.random() < 0.8:
                     return CallAction()
+
             if CheckAction in legal_actions:
                 return CheckAction()
             else:
                 return FoldAction()
+
         elif strength == 'weak':
-            # deal with weak hand
             if RaiseAction in legal_actions:
                 min_raise, max_raise = round_state.raise_bounds()
                 raise_amount = int(min_raise + (max_raise - min_raise) * random.uniform(0, 1))
 
-                if (my_cards[0][0] == my_bounty or my_cards[1][0] == my_bounty) and random.random() < 0.5:
+                if random.random() < 0.1:
                     return RaiseAction(raise_amount)
-                elif random.random() < 0.1:
-                    return RaiseAction(raise_amount)
+
             if CallAction in legal_actions:
                 if random.random() < 0.05:
                     return CallAction()
             if CheckAction in legal_actions:
                 return CheckAction()
             else:
-                return CallAction()
+                return FoldAction()
         else:
             return FoldAction()
-        # if len(board_cards) > 0:
-        #     card_one, card_two = my_cards
-        #     board_values = [card[0] for card in board_cards]
-        #     board_suits = [card[1] for card in board_cards]
-        #     if card_one[0] in board_values:
-        #         if RaiseAction in legal_actions:
-        #             min_raise, max_raise = round_state.raise_bounds()
-        #             raise_amount = int(min_raise + (max_raise - min_raise) * random.uniform(0, 1))
-
-        #             if random.random() < 0.8:
-        #                 if card_one[0] in ('AKQJT'):
-        #                     return RaiseAction(max_raise)
-        #                 elif ord(card_one[0] - 48 >= 8):
-        #                     return RaiseAction(raise_amount)
-        #                 else:
-        #                     return RaiseAction(min_raise)
-        #         if card_one[0] in ('AKQJT') and CallAction in legal_actions and random.random() < 0.7:
-        #             return CallAction()
-        #         elif CheckAction in legal_actions:
-        #             return CheckAction()
-        #         else:
-        #             return FoldAction()
-
-
-
-        # if RaiseAction in legal_actions:
-        #     min_raise, max_raise = round_state.raise_bounds()  # the smallest and largest numbers of chips for a legal bet/raise
-        #     min_cost = min_raise - my_pip  # the cost of a minimum bet/raise
-        #     max_cost = max_raise - my_pip  # the cost of a maximum bet/raise
-
-
-        #     card_one, card_two = my_cards
-        #     if (card_one[0] in ('AKQJT') and card_two[0] in ('AKQJT')) or card_one[1] == card_two[1]:
-        #         if RaiseAction in legal_actions:
-        #             min_raise, max_raise = round_state.raise_bounds()
-        #             raise_amount = int(min_raise + (max_raise - min_raise) * random.uniform(0, 1))
-
-        #             if random.random() < 0.8:
-        #                 return RaiseAction(raise_amount)
-        #         elif CheckAction in legal_actions and random.random() < 0.5:
-        #             return CheckAction()
-        #         elif random.random() < 0.01:
-        #             return FoldAction()
-
-        #     elif (ord(card_one[0]) - 48 >= 7 or ord(card_two[0]) - 48 >= 7):
-        #         min_raise, max_raise = round_state.raise_bounds()
-        #         raise_amount = int(min_raise + (max_raise - min_raise)*random.uniform(0, 1)*.1)
-
-        #         if random.random() < 0.4:
-        #             return RaiseAction(raise_amount)
-        #         elif CheckAction in legal_actions and random.random() < 0.5:
-        #             return CheckAction()
-        #         elif random.random() < 0.4:
-        #             return FoldAction()
-
-        #     else:
-        #         if CheckAction in legal_actions:
-        #             return CheckAction()
-        #         elif random.random() < 0.5:
-        #             return FoldAction()
-
-        # if CallAction in legal_actions and random.random() < .3:
-        #     return CallAction()
-        # elif CheckAction in legal_actions:
-        #     return CheckAction()
-        # else:
-        #     return FoldAction()
 
 
 if __name__ == '__main__':
