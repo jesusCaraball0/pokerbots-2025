@@ -30,7 +30,7 @@ class Player(Bot):
         self.time_thinking = 0
 
         # game states
-        self.auto_fold = 0
+        self.auto_fold = False
         self.opp_projected_win = False
 
         # round states
@@ -56,7 +56,7 @@ class Player(Bot):
         bounty_cost = blind_cost * .5 + 10 * rounds_left # worst case scenario where opp always hits bounty
 
         # worst case scenario chance that opp hits bounty
-        # bounty_rate = 4 * (1/51 + 1/49 + 1/48 + 1/47 + 1/46 + 1/45 + 1/44 + 1/43) # ~4/52 * 7
+        total_prob = 0
         for pos in self.opp_bounty_pos:
             i=0#amount of opp bounty cards in my hand
             for card in my_cards:
@@ -64,22 +64,14 @@ class Player(Bot):
                     i+=1
             prob=(4-i)/50+(50-4+i)*(4-i)/(50*49)
             total_prob+=prob/len(self.opp_bounty_pos)
-        bounty_rate=total_prob
+        bounty_rate=total_prob * 1.1
+        max_payment = blind_cost + math.ceil(bounty_cost)
+        remaining_payment = blind_cost + math.ceil(bounty_cost * bounty_rate) # fold if above this threshold
 
-        bounty_rate_1 = bounty_rate * 1.15 # 1.1
-        bounty_rate_2 = bounty_rate * .5 # .5
-        max_payment = blind_cost + math.ceil(bounty_cost * bounty_rate)
-        remaining_payment1 = blind_cost + math.ceil(bounty_cost * bounty_rate_1) # fold if between these thresholds
-        remaining_payment2 = blind_cost + math.ceil(bounty_cost * bounty_rate_2) # normal play if below this threshold
-
-        if my_bankroll - remaining_payment1 > 20:
-            if self.auto_fold != 1:
-                print(f"STRATEGIC FOLD @ {round_num}, ${my_bankroll}\t\t(${remaining_payment1} | ${remaining_payment2}, MAX ${max_payment})")
-            self.auto_fold = 1
-
-        if self.auto_fold == 1 and my_bankroll < remaining_payment2 and rounds_left > 75:
-            self.auto_fold = -1 # keep track that at some point we did auto fold
-            print(f"UNDER THRESHOLD @ {round_num}, ${my_bankroll}\t\t(${remaining_payment1} | ${remaining_payment2}, MAX ${max_payment})")
+        if my_bankroll - remaining_payment > 20:
+            if not self.auto_fold:
+                self.auto_fold = True
+                print(f"STRATEGIC FOLD @ {round_num}, ${my_bankroll}\t\t(${remaining_payment}, MAX ${max_payment})")
 
         # opp will probably win, play more risky before they start tanking blinds
         if opp_bankroll > blind_cost * .8:
@@ -102,14 +94,14 @@ class Player(Bot):
         if round_num % 25 == 0: # bounties reset every 25 rounds
             self.opp_bounty = None
             self.opp_bounty_pos = set(range(0, 13))
-        elif len(self.opp_bounty_pos) > 0:
+        elif len(self.opp_bounty_pos) > 0: # bounty has yet to be determined
             pos = set([eval7.Card(card).rank for card in opp_cards + board_cards])
             if opponent_bounty_hit:
                 if opp_cards:
                     self.opp_bounty_pos.intersection_update(pos)
             elif my_delta <= 0:
                 self.opp_bounty_pos.difference_update(pos)
-            if len(self.opp_bounty_pos) == 1:
+            if len(self.opp_bounty_pos) == 1: # bounty determined
                 self.opp_bounty = self.opp_bounty_pos.pop()
 
 
@@ -123,7 +115,7 @@ class Player(Bot):
             else:
                 self.call_win_counter[round_num] = 0
 
-        if my_contrib < opp_contrib and self.auto_fold != 1:
+        if my_contrib < opp_contrib and not self.auto_fold:
             self.fold_counter += 1
 
 
@@ -137,7 +129,7 @@ class Player(Bot):
             print("Chop %:", self.chop_counter / NUM_ROUNDS * 100, self.chop_counter)
             print("Call Win %:", call_win_counter / num_calls * 100, call_win_counter, num_calls)
             print("Time Spent Thinking (s):", round(self.time_thinking, 2))
-            if abs(self.auto_fold) == 1:
+            if self.auto_fold:
                 print("\nAUTO FOLDED" * 10)
 
 
@@ -177,7 +169,7 @@ class Player(Bot):
 
 
         # strategic fold and tank blinds
-        if self.auto_fold == 1:
+        if self.auto_fold:
             # prefer fold over check, prevent opp from seeing more cards
             return FoldAction()
 
@@ -225,11 +217,13 @@ class Player(Bot):
                             if continue_cost < abs(ev) / 2:
                                 return CallAction()
                     else:
+                        # check/fold if low kicker
+                        if hand_type == "Quads":
+                            if my_high_rank <= 8:
+                                return self.check_fold(legal_actions)
+
                         # attempt to bully, hoping they don't have chops implemented
                         # if they have a higher straight/flush/whatever, oh well
-
-                        if my_high_rank <= 8:
-                            return self.check_fold(legal_actions)
 
                         return self.raise_by(max_raise, round_state)
                 else:

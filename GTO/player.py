@@ -353,7 +353,7 @@ class Player(Bot):
                     return RaiseAction(raise_amount)
                 if random.random() < .8:
                     multiplier = random.random()
-                    return RaiseAction(raise_amount * multiplier)
+                    return RaiseAction(int(raise_amount * multiplier))
 
             if CallAction in legal_actions:
                 if random.random() < .95:
