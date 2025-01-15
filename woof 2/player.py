@@ -56,31 +56,34 @@ class Player(Bot):
         bounty_cost = blind_cost * .5 + 10 * rounds_left # worst case scenario where opp always hits bounty
 
         # worst case scenario chance that opp hits bounty
-        total_prob = 0
-        for pos in self.opp_bounty_pos:
-            i=0#amount of opp bounty cards in my hand
-            for card in my_cards:
-                if card.rank==pos:
-                    i+=1
-            prob=(4-i)/50+(50-4+i)*(4-i)/(50*49)
-            total_prob+=prob/len(self.opp_bounty_pos)
-        bounty_rate=total_prob * 1.1
+        # total_prob = 0
+        # for pos in self.opp_bounty_pos:
+        #     i=0#amount of opp bounty cards in my hand
+        #     for card in my_cards:
+        #         if card.rank==pos:
+        #             i+=1
+        #     prob=(4-i)/50+(50-4+i)*(4-i)/(50*49)
+        #     total_prob+=prob/len(self.opp_bounty_pos)
+        # bounty_rate=total_prob * 1.1
         # above is actually not working as expected
         # forgot that bounties change
         # assume i = 0, i.e. 4/50 + 46/50  * 4/49
 
-
+        bounty_rate = 4/50 + 46/50 * 4/49
         max_payment = blind_cost + math.ceil(bounty_cost)
         remaining_payment = blind_cost + math.ceil(bounty_cost * bounty_rate) # fold if above this threshold
 
         if my_bankroll - remaining_payment > 20:
             if not self.auto_fold:
                 self.auto_fold = True
+                print(bounty_rate)
                 print(f"STRATEGIC FOLD @ {round_num}, ${my_bankroll}\t\t(${remaining_payment}, MAX ${max_payment})")
 
         # opp will probably win, play more risky before they start tanking blinds
-        if opp_bankroll > blind_cost * .8:
+        if opp_bankroll > blind_cost * .5:
             self.opp_projected_win = True
+        else:
+            self.opp_projected_win = False
 
 
     def handle_round_over(self, game_state, terminal_state, active):
@@ -182,6 +185,11 @@ class Player(Bot):
         if my_stack == 0 and CheckAction in legal_actions:
             return CheckAction()
 
+        if self.opp_projected_win:
+            if continue_cost <= BIG_BLIND * 2:
+                print("agressive raise, opp projected to win", round_num)
+                return self.raise_by(min_raise, round_state)
+
 
         if street == 0:
             hand_percentile = hand_rating[1] / len(RATINGS)
@@ -268,7 +276,7 @@ class Player(Bot):
 
     def estimate_ev(self, my_cards, board_cards, my_bounty, pot_size):
         t0 = time.time()
-        trials = 5000 # 20000, 3000, 1500
+        trials = 5000 # 20000, 3000, 1500, 5000
         delta = 0
         streets_left = 5 - len(board_cards)
         bounty_size = math.ceil(pot_size * .5) + 10
