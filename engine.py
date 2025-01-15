@@ -324,7 +324,7 @@ class Player():
                             client_socket.settimeout(CONNECT_TIMEOUT)
                         sock = client_socket.makefile('rw')
                         self.socketfile = sock
-                        print(self.name, 'connected successfully')
+                        # print(self.name, 'connected successfully')
             except (TypeError, ValueError):
                 print(self.name, 'run command misformatted')
             except OSError:
@@ -543,12 +543,12 @@ class Game():
         '''
         Runs one game of poker.
         '''
-        print('   __  _____________  ___       __           __        __    ')
-        print('  /  |/  /  _/_  __/ / _ \\___  / /_____ ____/ /  ___  / /____')
-        print(' / /|_/ // /  / /   / ___/ _ \\/  \'_/ -_) __/ _ \\/ _ \\/ __(_-<')
-        print('/_/  /_/___/ /_/   /_/   \\___/_/\\_\\\\__/_/ /_.__/\\___/\\__/___/')
-        print()
-        print('Starting the Pokerbots engine...')
+        # print('   __  _____________  ___       __           __        __    ')
+        # print('  /  |/  /  _/_  __/ / _ \\___  / /_____ ____/ /  ___  / /____')
+        # print(' / /|_/ // /  / /   / ___/ _ \\/  \'_/ -_) __/ _ \\/ _ \\/ __(_-<')
+        # print('/_/  /_/___/ /_/   /_/   \\___/_/\\_\\\\__/_/ /_.__/\\___/\\__/___/')
+        # print()
+        # print('Starting the Pokerbots engine...')
         players = [
             Player(PLAYER_1_NAME, PLAYER_1_PATH),
             Player(PLAYER_2_NAME, PLAYER_2_PATH)
@@ -574,10 +574,29 @@ class Game():
         for player in players:
             player.stop()
         name = GAME_LOG_FILENAME + '.txt'
-        print('Writing', name)
+        # print('Writing', name)
         with open(name, 'w') as log_file:
             log_file.write('\n'.join(self.log))
 
+        return players
+
 
 if __name__ == '__main__':
-    Game().run()
+    print('   __  _____________  ___       __           __        __    ')
+    print('  /  |/  /  _/_  __/ / _ \\___  / /_____ ____/ /  ___  / /____')
+    print(' / /|_/ // /  / /   / ___/ _ \\/  \'_/ -_) __/ _ \\/ _ \\/ __(_-<')
+    print('/_/  /_/___/ /_/   /_/   \\___/_/\\_\\\\__/_/ /_.__/\\___/\\__/___/')
+    print()
+    print('Starting the Pokerbots engine...')
+
+    num = 0
+    wins = 0
+
+    while 1:
+        players = Game().run()
+
+        num += 1
+        if players[0].bankroll > players[1].bankroll:
+            wins += 1
+
+        print(str(num) + STATUS(players), str(round(wins / num * 100, 4)) + " %")
