@@ -81,8 +81,12 @@ class Player(Bot):
 
         # opp will probably win, play more risky before they start tanking blinds
         if opp_bankroll > blind_cost * .5:
+            if not self.opp_projected_win:
+                print("opp projected to win, agressively raise", round_num)
             self.opp_projected_win = True
         else:
+            if self.opp_projected_win:
+                print("INVERTED LOSS, opp was originally projected to win", round_num)
             self.opp_projected_win = False
 
 
@@ -187,7 +191,6 @@ class Player(Bot):
 
         if self.opp_projected_win:
             if continue_cost <= BIG_BLIND * 2:
-                print("agressive raise, opp projected to win", round_num)
                 return self.raise_by(min_raise, round_state)
 
 
