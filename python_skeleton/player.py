@@ -118,8 +118,9 @@ class Player(Bot):
             opp_bounty=random.choice(list(self.bounty_possibilities))
             # if opp_bounty not in self.bounty_possibilities:
             #     opp_bounty=-1
-            opp_cards=deck.sample(2+5-len(board_cards))[:2]
-            full_board=board_cards+deck.sample(2+5-len(board_cards))[2:]
+            sampled_cards = deck.sample(2+5-len(board_cards))
+            opp_cards=sampled_cards[:2]
+            full_board=board_cards+sampled_cards[2:]
             self_val=eval7.evaluate(full_board+my_cards)
             opp_val=eval7.evaluate(full_board+opp_cards)
             #print("o",self_val, opp_val)
