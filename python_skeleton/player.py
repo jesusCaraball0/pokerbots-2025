@@ -91,7 +91,7 @@ class Player(Bot):
     def monte_carlo(self, my_cards, board_cards, my_bounty, pot_size, continue_cost):
         init_time=time.time()
         winnings=0#based off of continued cost as the only cost, ignoring sunk cost
-        num_trials=500
+        num_trials=700
         my_cards=[eval7.Card(my_cards[0]),eval7.Card(my_cards[1])]
         board_cards=[eval7.Card(board) for board in board_cards]
         continue_cost_mult=0#amount of times to subtract continue_cost from winnings
@@ -100,7 +100,7 @@ class Player(Bot):
         for card in my_cards+board_cards:
                 deck.cards.remove(card)
         for i in range(num_trials):
-            deck.shuffle()
+
 
             #deck.remove(my_cards)
             #Next three lines determine opponent's bounty
@@ -118,8 +118,8 @@ class Player(Bot):
             opp_bounty=random.choice(list(self.bounty_possibilities))
             # if opp_bounty not in self.bounty_possibilities:
             #     opp_bounty=-1
-            opp_cards=deck.peek(2)
-            full_board=board_cards+deck.peek(2+5-len(board_cards))[2:]
+            opp_cards=deck.sample(2+5-len(board_cards))[:2]
+            full_board=board_cards+deck.sample(2+5-len(board_cards))[2:]
             self_val=eval7.evaluate(full_board+my_cards)
             opp_val=eval7.evaluate(full_board+opp_cards)
             #print("o",self_val, opp_val)
