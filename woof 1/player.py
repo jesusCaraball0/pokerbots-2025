@@ -64,6 +64,7 @@ class Player(Bot):
         if my_bankroll - remaining_payment > 20:
             if not self.auto_fold:
                 self.auto_fold = True
+                print(bounty_rate)
                 print(f"STRATEGIC FOLD @ {round_num}, ${my_bankroll}\t\t(${remaining_payment}, MAX ${max_payment})")
 
         # opp will probably win, play more risky before they start tanking blinds

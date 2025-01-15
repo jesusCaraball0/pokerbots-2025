@@ -65,6 +65,11 @@ class Player(Bot):
             prob=(4-i)/50+(50-4+i)*(4-i)/(50*49)
             total_prob+=prob/len(self.opp_bounty_pos)
         bounty_rate=total_prob * 1.1
+        # above is actually not working as expected
+        # forgot that bounties change
+        # assume i = 0, i.e. 4/50 + 46/50  * 4/49
+
+
         max_payment = blind_cost + math.ceil(bounty_cost)
         remaining_payment = blind_cost + math.ceil(bounty_cost * bounty_rate) # fold if above this threshold
 
