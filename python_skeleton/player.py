@@ -88,19 +88,20 @@ class Player(Bot):
             #print("I hit my bounty of " + bounty_rank + "!")
         #if opponent_bounty_hit:
             #print("Opponent hit their bounty of " + opponent_bounty_rank + "!")
-    def monte_carlo(self, my_cards, board_cards, my_bounty, pot_size ):
+    def monte_carlo(self, my_cards, board_cards, my_bounty, pot_size, continue_cost):
         init_time=time.time()
-        winnings=0
-        num_trials=175
+        winnings=0#based off of continued cost as the only cost, ignoring sunk cost
+        num_trials=500
         my_cards=[eval7.Card(my_cards[0]),eval7.Card(my_cards[1])]
         board_cards=[eval7.Card(board) for board in board_cards]
+        continue_cost_mult=0#amount of times to subtract continue_cost from winnings
         #while(time.time()-init_time<55):
-        for i in range(num_trials):
-            deck=eval7.Deck()
-
-            deck.shuffle()
-            for card in my_cards+board_cards:
+        deck=eval7.Deck()
+        for card in my_cards+board_cards:
                 deck.cards.remove(card)
+        for i in range(num_trials):
+            deck.shuffle()
+
             #deck.remove(my_cards)
             #Next three lines determine opponent's bounty
             # deck_opp_bounty=eval7.Deck()
@@ -114,36 +115,43 @@ class Player(Bot):
             #     opp_bounty=0
             # else:
             #     opp_bounty=deck_opp_bounty.peek(52-i)[i]
-            opp_bounty=random.choice(range(0,13))
-            if opp_bounty not in self.bounty_possibilities:
-                opp_bounty=-1
-
+            opp_bounty=random.choice(list(self.bounty_possibilities))
+            # if opp_bounty not in self.bounty_possibilities:
+            #     opp_bounty=-1
             opp_cards=deck.peek(2)
             full_board=board_cards+deck.peek(2+5-len(board_cards))[2:]
             self_val=eval7.evaluate(full_board+my_cards)
             opp_val=eval7.evaluate(full_board+opp_cards)
+            #print("o",self_val, opp_val)
             if self_val>opp_val:
                 bounty=False
                 for card in full_board+my_cards:
-                    print(card, card.rank)
+                    #print(card, card.rank)
                     if card.rank==my_bounty:
-                        winnings+=((1.5*pot_size+10)-.5*pot_size)
+                        winnings+=((1.5*pot_size+10)-continue_cost)
+                        #winnings+=1.5*pot_size+10
+                        #continue_cost_mult+=1
                         bounty=True
                         break
                 if not bounty:
-                    winnings+=.5*pot_size
+                    winnings+=pot_size-continue_cost
+                    #continue_cost_mult+=1
             elif self_val<opp_val:
                 bounty=False
                 for card in full_board+opp_cards:
                     if card.rank==opp_bounty:
-                        winnings-=((1.5*pot_size+10)-.5*pot_size)
+                        winnings-=((0.5*pot_size+10)+continue_cost)
+                        #winnings-=((0.5*pot_size+10))
                         bounty=True
+                        #continue_cost_mult+=1
                         break
                 if not bounty:
-                    winnings-=.5*pot_size
+                    winnings-=continue_cost
+                    #continue_cost_mult+=1
             else:
                 pass
-                #winnings+=.5*pot_size
+                winnings+=.5*pot_size
+                #winnings+=.5*pot_size+continue_cost #to account for subtracting continue cost later
         #print(f"{winnings=}")
         return winnings/num_trials
 
@@ -179,19 +187,77 @@ class Player(Bot):
            min_raise, max_raise = round_state.raise_bounds()  # the smallest and largest numbers of chips for a legal bet/raise
            min_cost = min_raise - my_pip  # the cost of a minimum bet/raise
            max_cost = max_raise - my_pip  # the cost of a maximum bet/raise
-        exp_winnings=self.monte_carlo(my_cards,board_cards, my_bounty, 2*opp_contribution)
-        # with open("output.txt","w") as file:
-        #     file.write(exp_winnings)
-        #print(exp_winnings)
-        #print(exp_winnings, opp_contribution)
-        if exp_winnings>0:
+        exp_winnings=self.monte_carlo(my_cards, board_cards, my_cards, opp_contribution*2, continue_cost)
+        if exp_winnings>continue_cost:
             if RaiseAction in legal_actions:
-                return RaiseAction(min_raise)
-            if CallAction in legal_actions:
+                return RaiseAction(min_raise+int((max_raise-min_raise)*random.random()/10))
+            elif CallAction in legal_actions:
                 return CallAction()
-        if CheckAction in legal_actions:
             return CheckAction()
-        return FoldAction()
+        else:
+            if random.random()<.1 or ((not board_cards) and random.random()<.80):
+                if RaiseAction in legal_actions and random.random()<.05:
+                    return RaiseAction(min_raise+int((max_raise-min_raise)*random.random()/12))
+                elif CallAction in legal_actions:
+                    return CallAction()
+
+            elif CheckAction in legal_actions:
+                return CheckAction()
+            return FoldAction()
+        # if not board_cards:
+        #     my_cards=[eval7.Card(my_cards[0]),eval7.Card(my_cards[1])]
+        #     board_cards=[eval7.Card(board) for board in board_cards]
+        #     if (my_cards[0].rank>8 and my_cards[1].rank>8) or (my_cards[0].rank==my_cards[1].rank and my_cards[0].rank>=2):
+        #         if random.random()>.90:
+        #             if RaiseAction in legal_actions:
+        #                 return RaiseAction(min_raise+int(random.random()*(max_raise-min_raise)))
+        #             return CallAction()
+        #         elif random.random()>.5 and CallAction in legal_actions:
+        #             return CallAction()
+        #         elif CheckAction in legal_actions:
+        #             return CheckAction()
+        #         else:
+        #             return FoldAction()
+        #     else:
+        #         if CheckAction in legal_actions:
+        #             return CheckAction()
+        #         elif random.random()<.08:
+        #             if CallAction in legal_actions:
+        #                 return CallAction()
+        #             if RaiseAction in legal_actions:
+        #                 return RaiseAction(min_raise+int(random.random()*(max_raise-min_raise)/50))
+        #         return FoldAction()
+        # if RaiseAction not in legal_actions:
+        #     if CheckAction in legal_actions:
+        #         return CheckAction()
+        #     exp_winnings=self.monte_carlo(my_cards,board_cards, my_bounty, 2*(opp_contribution),continue_cost)
+        #     if (exp_winnings>continue_cost and random.random()<.95) or random.random()<.05:
+
+        #         if CallAction in legal_actions:
+        #             return CallAction()
+
+        # raise_amt=random.random()*(max_raise-min_raise)+min_raise
+        # exp_winnings=self.monte_carlo(my_cards,board_cards, my_bounty, 2*(opp_contribution+raise_amt),continue_cost+raise_amt)
+        # print(f"{exp_winnings=}{my_cards=}{board_cards=}")
+        # # with open("output.txt","w") as file:
+        # #     file.write(exp_winnings)
+        # #print(exp_winnings)
+        # #print(exp_winnings, opp_contribution)
+        # if (exp_winnings>continue_cost+raise_amt):# and random.random()<.95) or random.random()<.05:
+        #     if RaiseAction in legal_actions:
+        #         return RaiseAction(raise_amt)
+        # else:
+        #     if CheckAction in legal_actions:
+        #         return CheckAction()
+        #     exp_winnings=self.monte_carlo(my_cards,board_cards, my_bounty, 2*(opp_contribution),continue_cost)
+        #     if (exp_winnings>continue_cost):# and random.random()<.95) or random.random()<.05:
+
+        #         if CallAction in legal_actions:
+        #             return CallAction()
+        # if CheckAction in legal_actions:
+        #     return CheckAction()
+
+        # return FoldAction()
         # if RaiseAction in legal_actions:
         #     exp_winnings=self.monte_carlo(my_cards,board_cards, my_bounty)
         #     # with open("output.txt","w") as file:
