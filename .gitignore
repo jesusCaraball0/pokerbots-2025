@@ -8,3 +8,4 @@ gamelog.txt
 .metadata/
 build/
 *.zip
+config.py
