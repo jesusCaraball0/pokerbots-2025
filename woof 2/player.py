@@ -80,14 +80,14 @@ class Player(Bot):
                 print(f"STRATEGIC FOLD @ {round_num}, ${my_bankroll}\t\t(${remaining_payment}, MAX ${max_payment})")
 
         # opp will probably win, play more risky before they start tanking blinds
-        if opp_bankroll > blind_cost * .8:
+        if opp_bankroll > blind_cost * .7:
             if not self.opp_projected_win:
                 print("opp projected to win, agressively raise", round_num)
             self.opp_projected_win = True
-        else:
-            if self.opp_projected_win:
+        elif self.opp_projected_win:
+            if opp_bankroll < blind_cost * .3:
                 print("INVERTED LOSS, opp was originally projected to win", round_num)
-            self.opp_projected_win = False
+                self.opp_projected_win = False
 
 
     def handle_round_over(self, game_state, terminal_state, active):
@@ -190,6 +190,8 @@ class Player(Bot):
             return CheckAction()
 
         if self.opp_projected_win:
+            if CheckAction in legal_actions:
+                return CheckAction()
             if continue_cost <= BIG_BLIND * 2:
                 return self.raise_by(min_raise, round_state)
 
