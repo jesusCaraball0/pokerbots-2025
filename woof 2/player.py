@@ -106,7 +106,7 @@ class Player(Bot):
         if round_num % 25 == 0: # bounties reset every 25 rounds
             self.opp_bounty = None
             self.opp_bounty_pos = set(range(0, 13))
-        elif len(self.opp_bounty_pos) > 0: # bounty has yet to be determined
+        elif len(self.opp_bounty_pos) > 1: # bounty has yet to be determined
             pos = set([eval7.Card(card).rank for card in opp_cards + board_cards])
             if opponent_bounty_hit:
                 if opp_cards:
@@ -114,7 +114,7 @@ class Player(Bot):
             elif my_delta <= 0:
                 self.opp_bounty_pos.difference_update(pos)
             if len(self.opp_bounty_pos) == 1: # bounty determined
-                self.opp_bounty = self.opp_bounty_pos.pop()
+                self.opp_bounty = next(iter(self.opp_bounty_pos))
 
 
         # record stats
@@ -200,6 +200,11 @@ class Player(Bot):
             hand_percentile = hand_rating[1] / len(RATINGS)
 
             if hand_percentile > .52:
+                if my_pip + continue_cost < (SMALL_BLIND + BIG_BLIND) * 2:
+                    if CheckAction in legal_actions:
+                        return CheckAction()
+                    if CallAction in legal_actions:
+                        return CallAction()
                 return self.check_fold(legal_actions)
             elif hand_percentile < .25:
                 return self.raise_by(1/8, round_state)
@@ -220,15 +225,17 @@ class Player(Bot):
                     ev += 15
                     if hand_type == "Pair":
                         if ev > 0:
-                            return self.raise_by(1/6, round_state)
+                            ev = min(ev, STARTING_STACK / 6)
+                            return self.raise_by(ev, round_state)
                         else:
                             if CheckAction in legal_actions:
                                 return CheckAction()
-                            if continue_cost < abs(ev) / 2:
+                            if continue_cost < abs(ev) / 3:
                                 return CallAction()
                     elif hand_type == "Two Pair" or hand_type == "Trips":
                         if ev > 0:
-                            return self.raise_by(1/5, round_state)
+                            ev = min(ev, STARTING_STACK / 6)
+                            return self.raise_by(ev, round_state)
                         else:
                             if CheckAction in legal_actions:
                                 return CheckAction()
@@ -261,19 +268,39 @@ class Player(Bot):
                     else:
                         return self.raise_by(3.2/8, round_state)
             else:
-                if continue_cost == 0:
-                    if ev > -50:
-                        if RaiseAction in legal_actions:
-                            return self.raise_by(min_raise, round_state)
+                if continue_cost == 0 and (my_bankroll + ev * 3) >= 0:
+                    if RaiseAction in legal_actions:
+                        return self.raise_by(min_raise, round_state)
 
-                if ev > 0:
-                    ev = min(ev, STARTING_STACK / 5)
-                    return self.raise_by(ev, round_state)
-                else:
-                    if continue_cost < abs(ev) / 2:
-                        if my_pip == 0:
-                            return self.raise_by(min_raise, round_state)
-                        return CallAction()
+                # TODO: fix this garbage below, it's actually horrible :(
+                if ev > -50:
+                    # print(my_cards, board_cards, my_bankroll, ev, continue_cost)
+                    if ev > 0:
+                        ev = min(ev, STARTING_STACK / 5)
+                        return self.raise_by(ev, round_state)
+                    else:
+                        # if continue_cost < (abs(ev) + 10):
+                        if continue_cost < abs(ev) / 2:
+                            if CheckAction in legal_actions:
+                                return CheckAction()
+                            if CallAction in legal_actions:
+                                return CallAction()
+
+
+
+                # if continue_cost == 0:
+                #     if ev > -50:
+                #         if RaiseAction in legal_actions:
+                #             return self.raise_by(min_raise, round_state)
+
+                # if ev > 0:
+                #     ev = min(ev, STARTING_STACK / 5)
+                #     return self.raise_by(ev, round_state)
+                # else:
+                #     if continue_cost < abs(ev) / 2:
+                #         if my_pip == 0:
+                #             return self.raise_by(min_raise, round_state)
+                #         return CallAction()
 
 
         return self.check_fold(legal_actions)
