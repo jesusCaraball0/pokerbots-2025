@@ -80,7 +80,7 @@ class Player(Bot):
                 print(f"STRATEGIC FOLD @ {round_num}, ${my_bankroll}\t\t(${remaining_payment}, MAX ${max_payment})")
 
         # opp will probably win, play more risky before they start tanking blinds
-        if opp_bankroll > blind_cost * .5:
+        if opp_bankroll > blind_cost * .8:
             if not self.opp_projected_win:
                 print("opp projected to win, agressively raise", round_num)
             self.opp_projected_win = True
@@ -279,7 +279,7 @@ class Player(Bot):
 
     def estimate_ev(self, my_cards, board_cards, my_bounty, pot_size):
         t0 = time.time()
-        trials = 5000 # 20000, 3000, 1500, 5000
+        trials = 1500 # 20000, 3000, 1500, 5000
         delta = 0
         streets_left = 5 - len(board_cards)
         bounty_size = math.ceil(pot_size * .5) + 10

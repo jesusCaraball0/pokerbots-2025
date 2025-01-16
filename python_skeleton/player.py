@@ -9,6 +9,7 @@ from skeleton.runner import parse_args, run_bot
 import eval7
 import time
 import random
+import math
 
 
 class Player(Bot):
@@ -27,6 +28,8 @@ class Player(Bot):
         Nothing.
         '''
         self.bounty_possibilities={0,1,2,3,4,5,6,7,8,9,10,11,12}#for opponent
+        self.time_thinking = 0
+        self.auto_fold = False
 
     def handle_new_round(self, game_state, round_state, active):
         '''
@@ -46,7 +49,30 @@ class Player(Bot):
         #my_cards = round_state.hands[active]  # your cards
         #big_blind = bool(active)  # True if you are the big blind
         #my_bounty = round_state.bounties[active]  # your current bounty rank
-        pass
+
+        round_num = game_state.round_num
+        my_bankroll = game_state.bankroll
+        opp_bankroll = -game_state.bankroll
+
+        my_cards = round_state.hands[active]
+        my_cards = [eval7.Card(card) for card in my_cards]
+
+
+        # strategic fold and tank blinds
+        rounds_left = NUM_ROUNDS - round_num + 1
+        rotations_left = math.floor(rounds_left / 2)
+        current_blind = rounds_left % 2 == 1 and (bool(active) and BIG_BLIND or SMALL_BLIND) or 0
+        blind_cost = current_blind + (SMALL_BLIND + BIG_BLIND) * rotations_left
+        bounty_cost = blind_cost * .5 + 10 * rounds_left # worst case scenario where opp always hits bounty
+
+        bounty_rate = 4/50 + 46/50 * 4/49
+        max_payment = blind_cost + math.ceil(bounty_cost)
+        remaining_payment = blind_cost + math.ceil(bounty_cost * bounty_rate) # fold if above this threshold
+
+        if my_bankroll - remaining_payment > 20:
+            if not self.auto_fold:
+                self.auto_fold = True
+                print(f"STRATEGIC FOLD @ {round_num}, ${my_bankroll}\t\t(${remaining_payment}, MAX ${max_payment})")
 
     def handle_round_over(self, game_state, terminal_state, active):
         '''
@@ -80,6 +106,9 @@ class Player(Bot):
             self.bounty_possibilities=self.bounty_possibilities.intersection(pos)
         if(round_num%25==0):
             self.bounty_possibilities=set(range(0,13))
+
+        if round_num == NUM_ROUNDS:
+            print("Time Spent Thinking (s):", round(self.time_thinking, 2))
 
         # The following is a demonstration of accessing illegal information (will not work)
         #opponent_bounty_rank = previous_state.bounties[1-active]  # attempting to grab opponent's bounty rank
@@ -154,6 +183,7 @@ class Player(Bot):
                 winnings+=.5*pot_size
                 #winnings+=.5*pot_size+continue_cost #to account for subtracting continue cost later
         #print(f"{winnings=}")
+        self.time_thinking += time.time() - init_time
         return winnings/num_trials
 
 
@@ -184,6 +214,11 @@ class Player(Bot):
         my_bounty = round_state.bounties[active]  # your current bounty rank
         my_contribution = STARTING_STACK - my_stack  # the number of chips you have contributed to the pot
         opp_contribution = STARTING_STACK - opp_stack  # the number of chips your opponent has contributed to the pot
+
+        if self.auto_fold:
+            # prefer fold over check, prevent opp from seeing more cards
+            return FoldAction()
+
         if RaiseAction in legal_actions:
            min_raise, max_raise = round_state.raise_bounds()  # the smallest and largest numbers of chips for a legal bet/raise
            min_cost = min_raise - my_pip  # the cost of a minimum bet/raise
