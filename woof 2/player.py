@@ -69,25 +69,31 @@ class Player(Bot):
         # forgot that bounties change
         # assume i = 0, i.e. 4/50 + 46/50  * 4/49
 
-        bounty_rate = 4/50 + 46/50 * 4/49
+        bounty_rate = (4/50 + 46/50 * 4/49) * 1.05
         max_payment = blind_cost + math.ceil(bounty_cost)
         remaining_payment = blind_cost + math.ceil(bounty_cost * bounty_rate) # fold if above this threshold
 
         if my_bankroll - remaining_payment > 20:
             if not self.auto_fold:
                 self.auto_fold = True
-                print(bounty_rate)
-                print(f"STRATEGIC FOLD @ {round_num}, ${my_bankroll}\t\t(${remaining_payment}, MAX ${max_payment})")
+                # print(bounty_rate)
+                # print(f"STRATEGIC FOLD @ {round_num}, ${my_bankroll}\t\t(${remaining_payment}, MAX ${max_payment})")
+
+
+        # print("round_num, my_bankroll, opp_bankroll, blind_cost, bounty_cost * bounty_rate")
+        # print(f"{round_num}, {my_bankroll}, {opp_bankroll}, {blind_cost}, {bounty_cost * bounty_rate}")
+        print(f"{round_num}, {my_bankroll}, {opp_bankroll}")
 
         # opp will probably win, play more risky before they start tanking blinds
-        if opp_bankroll > blind_cost * .7:
-            if not self.opp_projected_win:
-                print("opp projected to win, agressively raise", round_num)
-            self.opp_projected_win = True
-        elif self.opp_projected_win:
-            if opp_bankroll < blind_cost * .3:
-                print("INVERTED LOSS, opp was originally projected to win", round_num)
-                self.opp_projected_win = False
+        if not self.auto_fold:
+            if opp_bankroll > blind_cost + bounty_rate * .8:
+                if not self.opp_projected_win:
+                    # print("opp projected to win, be more agressive", round_num)
+                    self.opp_projected_win = True
+            elif self.opp_projected_win:
+                if opp_bankroll < blind_cost:
+                    # print("INVERTED LOSS, opp was originally projected to win", round_num)
+                    self.opp_projected_win = False
 
 
     def handle_round_over(self, game_state, terminal_state, active):
@@ -199,10 +205,10 @@ class Player(Bot):
         if street == 0:
             hand_percentile = hand_rating[1] / len(RATINGS)
 
-            if hand_percentile > .52:
+            if hand_percentile > .52 and not self.opp_projected_win:
+                if CheckAction in legal_actions:
+                    return CheckAction()
                 if my_pip + continue_cost < (SMALL_BLIND + BIG_BLIND) * 2:
-                    if CheckAction in legal_actions:
-                        return CheckAction()
                     if CallAction in legal_actions:
                         return CallAction()
                 return self.check_fold(legal_actions)
@@ -211,6 +217,9 @@ class Player(Bot):
             elif hand_percentile < .4:
                 return self.raise_by(min_raise, round_state)
             else:
+                if continue_cost == 0:
+                    if RaiseAction in legal_actions:
+                        return self.raise_by(min_raise, round_state)
                 if continue_cost < random.randint(8, 18):
                     if CheckAction in legal_actions:
                         return CheckAction()
@@ -247,10 +256,11 @@ class Player(Bot):
                             if my_high_rank <= 8:
                                 return self.check_fold(legal_actions)
 
-                        # attempt to bully, hoping they don't have chops implemented
-                        # if they have a higher straight/flush/whatever, oh well
+                        # # attempt to bully, hoping they don't have chops implemented
+                        # # if they have a higher straight/flush/whatever, oh well
+                        # return self.raise_by(max_raise, round_state)
 
-                        return self.raise_by(max_raise, round_state)
+                        return self.raise_by(ev, round_state)
                 else:
                     if hand_type == "Pair":
                         if ev > 0:
