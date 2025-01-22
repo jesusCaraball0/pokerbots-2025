@@ -1,10 +1,9 @@
 # PARAMETERS TO CONTROL THE BEHAVIOR OF THE GAME ENGINE
 # DO NOT REMOVE OR RENAME THIS FILE
 PLAYER_1_NAME = "A"
-PLAYER_1_PATH = "./woof 2"
+PLAYER_1_PATH = "./chirp 1"
 # NO TRAILING SLASHES ARE ALLOWED IN PATHS
 PLAYER_2_NAME = "B"
-PLAYER_2_PATH = "./woof 2"  # Change this to './player_chatbot' to interact with your own bot!
 PLAYER_2_PATH = "./woof 3"  # Change this to './player_chatbot' to interact with your own bot!
 # GAME PROGRESS IS RECORDED HERE
 GAME_LOG_FILENAME = "gamelog"

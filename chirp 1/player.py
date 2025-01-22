@@ -18,7 +18,7 @@ def rate_hand(hand):
 
 class Player(Bot):
     '''
-    woof
+    chirp
     '''
 
 
@@ -77,22 +77,18 @@ class Player(Bot):
             if not self.auto_fold:
                 self.auto_fold = True
                 # print(bounty_rate)
-                print(f"STRATEGIC FOLD @ {round_num}, ${my_bankroll}\t\t(${remaining_payment}, MAX ${max_payment})")
+                # print(f"STRATEGIC FOLD @ {round_num}, ${my_bankroll}\t\t(${remaining_payment}, MAX ${max_payment})")
 
-
-        # print("round_num, my_bankroll, opp_bankroll, blind_cost, bounty_cost * bounty_rate")
-        # print(f"{round_num}, {my_bankroll}, {opp_bankroll}, {blind_cost}, {bounty_cost * bounty_rate}")
-        # print(f"{round_num}, {my_bankroll}, {opp_bankroll}")
 
         # opp will probably win, play more risky before they start tanking blinds
         if not self.auto_fold:
             if opp_bankroll > blind_cost + bounty_rate * .8:
                 if not self.opp_projected_win:
-                    print("opp projected to win, be more agressive", round_num)
+                    # print("opp projected to win, be more agressive", round_num)
                     self.opp_projected_win = True
             elif self.opp_projected_win:
                 if opp_bankroll < blind_cost:
-                    print("INVERTED LOSS, opp was originally projected to win", round_num)
+                    # print("INVERTED LOSS, opp was originally projected to win", round_num)
                     self.opp_projected_win = False
 
 
@@ -135,6 +131,8 @@ class Player(Bot):
 
         if my_contrib < opp_contrib and not self.auto_fold:
             self.fold_counter += 1
+
+        print(f"{round_num}, {game_state.bankroll}, {-game_state.bankroll}")
 
 
         # match over
@@ -201,176 +199,111 @@ class Player(Bot):
             if continue_cost <= BIG_BLIND * 2:
                 return self.raise_by(min_raise, round_state)
 
-
+        ev = 0
         if street == 0:
-            hand_percentile = hand_rating[1] / len(RATINGS)
-
-            if hand_percentile > .52 and not self.opp_projected_win:
-                if CheckAction in legal_actions:
-                    return CheckAction()
-                if my_pip + continue_cost < (SMALL_BLIND + BIG_BLIND) * 2:
-                    if CallAction in legal_actions:
-                        return CallAction()
-                return self.check_fold(legal_actions)
-            elif hand_percentile < .25:
-                return self.raise_by(1/8, round_state)
-            elif hand_percentile < .4:
-                return self.raise_by(min_raise, round_state)
-            else:
-                if continue_cost == 0:
-                    if RaiseAction in legal_actions:
-                        return self.raise_by(min_raise, round_state)
-                if continue_cost < random.randint(8, 18):
-                    if CheckAction in legal_actions:
-                        return CheckAction()
-                    if CallAction in legal_actions:
-                        return CallAction()
-
+            ev = hand_rating[0] * 3
         else:
-            ev = self.estimate_ev(my_cards, board_cards, my_bounty, pot_size)
+            cache = set()
+            range_all = []
+            for rank1 in eval7.ranks:
+                for rank2 in eval7.ranks:
+                    hand_key = eval7.evaluate([eval7.Card(card) for card in [rank1 + "s", rank2 + "c"]])
+                    if hand_key not in cache:
+                        cache.add(hand_key)
+                        range_all.append(rank1 + rank2)
+            range_all = eval7.HandRange(",".join(range_all))
 
-            if hand_type != "High Card":
-                if hand_type == board_type:
-                    ev += 15
-                    if hand_type == "Pair":
-                        if ev > 0:
-                            ev = min(ev, STARTING_STACK / 6)
-                            return self.raise_by(ev, round_state)
-                        else:
-                            if CheckAction in legal_actions:
-                                return CheckAction()
-                            if continue_cost < abs(ev) / 3:
-                                return CallAction()
-                    elif hand_type == "Two Pair" or hand_type == "Trips":
-                        if ev > 0:
-                            ev = min(ev, STARTING_STACK / 6)
-                            return self.raise_by(ev, round_state)
-                        else:
-                            if CheckAction in legal_actions:
-                                return CheckAction()
-                            if continue_cost < abs(ev) / 2:
-                                return CallAction()
-                    else:
-                        # check/fold if low kicker
-                        if hand_type == "Quads":
-                            if my_high_rank <= 8:
-                                return self.check_fold(legal_actions)
+            ev = self.estimate_ev(my_cards, range_all, board_cards, my_bounty, pot_size, continue_cost)
 
-                        # # attempt to bully, hoping they don't have chops implemented
-                        # # if they have a higher straight/flush/whatever, oh well
-                        # return self.raise_by(max_raise, round_state)
 
-                        return self.raise_by(ev, round_state)
+        # print(round_num, my_cards, board_cards, ev, my_bankroll)
+        if street == 0:
+            if ev < 0:
+                if continue_cost > BIG_BLIND * 3 and continue_cost > abs(ev):
+                    return self.check_fold(legal_actions)
                 else:
-                    if hand_type == "Pair":
-                        if ev > 0:
-                            ev = min(ev, STARTING_STACK / 5)
-                            return self.raise_by(ev, round_state)
-                        else:
-                            if continue_cost < abs(ev) / 2:
-                                if my_pip == 0:
-                                    if RaiseAction in legal_actions:
-                                        return self.raise_by(min_raise, round_state)
-                                if CheckAction in legal_actions:
-                                    return CheckAction()
-                                if CallAction in legal_actions:
-                                    return CallAction()
-                    else:
-                        return self.raise_by(3.2/8, round_state)
-            else:
-                if continue_cost == 0 and (my_bankroll + ev * 3) >= 0:
-                    if RaiseAction in legal_actions:
-                        return self.raise_by(min_raise, round_state)
-
-                # TODO: fix this garbage below, it's actually horrible :(
-                if ev > -50:
-                    # print(my_cards, board_cards, my_bankroll, ev, continue_cost)
-                    if ev > 0:
-                        ev = min(ev, STARTING_STACK / 5)
-                        return self.raise_by(ev, round_state)
-                    else:
-                        # if continue_cost < (abs(ev) + 10):
-                        if continue_cost < abs(ev) / 2:
-                            if CheckAction in legal_actions:
-                                return CheckAction()
-                            if CallAction in legal_actions:
-                                return CallAction()
+                    if CallAction in legal_actions:
+                        return CallAction()
 
 
-
-                # if continue_cost == 0:
-                #     if ev > -50:
-                #         if RaiseAction in legal_actions:
-                #             return self.raise_by(min_raise, round_state)
-
-                # if ev > 0:
-                #     ev = min(ev, STARTING_STACK / 5)
-                #     return self.raise_by(ev, round_state)
-                # else:
-                #     if continue_cost < abs(ev) / 2:
-                #         if my_pip == 0:
-                #             return self.raise_by(min_raise, round_state)
-                #         return CallAction()
-
+            if my_pip + continue_cost < my_bankroll / 100:
+                if CallAction in legal_actions:
+                    return CallAction()
+            if my_pip == 0 and continue_cost < ev:
+                return self.raise_by(min_raise + continue_cost, round_state)
+            if continue_cost < ev and continue_cost < 20:
+                return CallAction()
+        else:
+            # print(my_stack, continue_cost, ev)
+            if ev < 0:
+                return self.check_fold(legal_actions)
+            if continue_cost < ev:
+                return self.raise_by(min_raise + continue_cost, round_state)
+            if continue_cost < ev * 2:
+                if CallAction in legal_actions:
+                    return CallAction()
 
         return self.check_fold(legal_actions)
 
 
-    def estimate_ev(self, my_cards, board_cards, my_bounty, pot_size):
+    def estimate_ev(self, my_cards, opp_range, board_cards, my_bounty, pot_size, continue_cost):
         t0 = time.time()
-        trials = 1500 # 20000, 3000, 1500, 5000
-        delta = 0
         streets_left = 5 - len(board_cards)
+        equity = (eval7.py_hand_vs_range_exact(my_cards, opp_range, board_cards) if streets_left == 0 else
+                eval7.py_hand_vs_range_monte_carlo(my_cards, opp_range, board_cards, 500000))
         bounty_size = math.ceil(pot_size * .5) + 10
-
-        my_bounty_hit = False
-        for card in my_cards + board_cards:
-            if card.rank == my_bounty:
-                my_bounty_hit = True
-                break
 
         deck = eval7.Deck()
         deck.shuffle()
         for card in my_cards + board_cards:
             deck.cards.remove(card)
+        cards_left = len(deck.cards) # - 2
+        board_ranks = set(card.rank for card in board_cards)
 
+        my_bounty_prob = any(card.rank == my_bounty for card in my_cards + board_cards) and 1 or 0
+        if my_bounty_prob == 0:
+            # calculate worst-case-scenario/adverserial chance that NONE of the future streets strike our bounty
+            no_street_bounty_prob = 1
+            for i in range(streets_left):
+                no_street_bounty_prob *= (cards_left - 4 - i) / (cards_left - i)
 
+            my_bounty_prob = 1 - no_street_bounty_prob
+
+        opp_bounty_prob = 0
         for opp_bounty in self.opp_bounty_pos:
-            opp_bounty_hit = False
-            for card in board_cards:
-                if card.rank == opp_bounty:
-                    opp_bounty_hit = True
-                    break
+            if opp_bounty in board_ranks: # if the bounty is already on the board
+                opp_bounty_prob += 1
+            else:
+                # else, how many are left in the deck (i.e. we know they were dealt as our hole cards)
+                bounty_freq = sum(1 for card in deck.cards if card.rank == opp_bounty)
 
-            for i in range(trials):
-                cards = deck.sample(2 + streets_left)
-                opp_cards = cards[:2]
-                trial_cards = cards[2:]
-                trial_board = board_cards + trial_cards
-                my_eval = eval7.evaluate(my_cards + trial_board)
-                opp_eval = eval7.evaluate(opp_cards + trial_board)
+                # calculate worst-case-scenario/adverserial chance that opp DOES HAVE (having is NOT the same as drawing) their bounty
+                # opp_doesnt_have_their_bounty = (cards_left - bounty_freq)/cards_left * (cards_left - 1 - bounty_freq)/(cards_left - 1)
+                opp_has_their_bounty = bounty_freq/cards_left + (cards_left - bounty_freq)/cards_left * bounty_freq/(cards_left - 1)
 
-                if not my_bounty_hit:
-                    for card in trial_cards:
-                        if card.rank == my_bounty:
-                            my_bounty_hit = True
-                            break
-                if not opp_bounty_hit:
-                    for card in opp_cards + trial_cards:
-                        if card.rank == opp_bounty:
-                            opp_bounty_hit = True
-                            break
+                # calculate worst-case-scenario/adverserial chance that at least one of the future streets strike their bounty
+                street_bounty_prob = streets_left != 0 and bounty_freq/cards_left or 0
+                for i in range(1, streets_left):
+                    street_bounty_prob += bounty_freq/(cards_left - i) * (cards_left - i - 1 - bounty_freq)/(cards_left - i - 1)
 
-                if my_eval > opp_eval:
-                    delta += pot_size + my_bounty_hit and bounty_size or 0
-                elif my_eval < opp_eval:
-                    delta -= pot_size + opp_bounty_hit and bounty_size or 0
-                else:
-                    delta += my_bounty_hit and bounty_size or 0
-                    delta -= opp_bounty_hit and bounty_size or 0
+                # calculate worst-case-scenario/adverserial chance that NONE of the future streets strike their bounty
+                no_street_bounty_prob = 1
+                for i in range(streets_left):
+                    no_street_bounty_prob *= (cards_left - bounty_freq - i) / (cards_left - i)
 
+                # average b/c I can't get the statistics quite right on this one (??)
+                # off by very little regardless
+                street_bounty_prob = (street_bounty_prob + 1 - no_street_bounty_prob) / 2
+
+                opp_bounty_prob += opp_has_their_bounty + street_bounty_prob * (1 - opp_has_their_bounty)
+        opp_bounty_prob /= len(self.opp_bounty_pos)
+
+        # print(equity, pot_size, continue_cost, str(round((time.time() - t0) * 1000, 2)) + " ms")
         self.time_thinking += time.time() - t0
-        return delta / trials
+        return (equity * pot_size
+                + equity * my_bounty_prob * bounty_size
+                - (1 - equity) * continue_cost
+                - (1 - equity) * opp_bounty_prob * bounty_size)
 
     def check_fold(self, legal_actions):
         return CheckAction in legal_actions and CheckAction() or FoldAction()
@@ -393,7 +326,9 @@ class Player(Bot):
             return RaiseAction(amount)
         if CallAction in legal_actions:
             return CallAction()
-        return CheckAction()
+        if CheckAction  in legal_actions:
+            return CheckAction()
+        return FoldAction()
 
 
 if __name__ == "__main__":
