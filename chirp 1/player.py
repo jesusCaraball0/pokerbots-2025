@@ -69,7 +69,7 @@ class Player(Bot):
         # forgot that bounties change
         # assume i = 0, i.e. 4/50 + 46/50  * 4/49
 
-        bounty_rate = (4/50 + 46/50 * 4/49) * 1.05
+        bounty_rate = (4/50 + 46/50 * 4/49) * 1.1
         max_payment = blind_cost + math.ceil(bounty_cost)
         remaining_payment = blind_cost + math.ceil(bounty_cost * bounty_rate) # fold if above this threshold
 
@@ -77,18 +77,18 @@ class Player(Bot):
             if not self.auto_fold:
                 self.auto_fold = True
                 # print(bounty_rate)
-                # print(f"STRATEGIC FOLD @ {round_num}, ${my_bankroll}\t\t(${remaining_payment}, MAX ${max_payment})")
+                print(f"STRATEGIC FOLD @ {round_num}, ${my_bankroll}\t\t(${remaining_payment}, MAX ${max_payment})")
 
 
         # opp will probably win, play more risky before they start tanking blinds
         if not self.auto_fold:
             if opp_bankroll > blind_cost + bounty_rate * .8:
                 if not self.opp_projected_win:
-                    # print("opp projected to win, be more agressive", round_num)
+                    print("opp projected to win, be more agressive", round_num)
                     self.opp_projected_win = True
             elif self.opp_projected_win:
                 if opp_bankroll < blind_cost:
-                    # print("INVERTED LOSS, opp was originally projected to win", round_num)
+                    print("INVERTED LOSS, opp was originally projected to win", round_num)
                     self.opp_projected_win = False
 
 
@@ -132,7 +132,7 @@ class Player(Bot):
         if my_contrib < opp_contrib and not self.auto_fold:
             self.fold_counter += 1
 
-        print(f"{round_num}, {game_state.bankroll}, {-game_state.bankroll}")
+        # print(f"{round_num}, {game_state.bankroll}, {-game_state.bankroll}")
 
 
         # match over
@@ -167,7 +167,7 @@ class Player(Bot):
         opp_contrib = STARTING_STACK - opp_stack
         pot_size = my_contrib + opp_contrib
         min_raise, max_raise = round_state.raise_bounds()
-        min_raise = min(min_raise + BIG_BLIND * random.randint(3, 6), max_raise) # 3, 18
+        min_raise = min(min_raise + BIG_BLIND * random.randint(2, 4), max_raise) # 3, 18
 
         my_cards = [eval7.Card(card) for card in my_cards]
         board_cards = [eval7.Card(card) for card in board_cards]
@@ -200,6 +200,7 @@ class Player(Bot):
                 return self.raise_by(min_raise, round_state)
 
         ev = 0
+        equity = 0
         if street == 0:
             ev = hand_rating[0] * 3
         else:
@@ -213,10 +214,10 @@ class Player(Bot):
                         range_all.append(rank1 + rank2)
             range_all = eval7.HandRange(",".join(range_all))
 
-            ev = self.estimate_ev(my_cards, range_all, board_cards, my_bounty, pot_size, continue_cost)
+            ev, equity = self.estimate_ev(my_cards, range_all, board_cards, my_bounty, pot_size, continue_cost)
 
 
-        # print(round_num, my_cards, board_cards, ev, my_bankroll)
+        print(round_num, my_cards, board_cards, ev, my_bankroll)
         if street == 0:
             if ev < 0:
                 if continue_cost > BIG_BLIND * 3 and continue_cost > abs(ev):
@@ -226,18 +227,20 @@ class Player(Bot):
                         return CallAction()
 
 
-            if my_pip + continue_cost < my_bankroll / 100:
+            if my_contrib + continue_cost < my_bankroll / 100:
                 if CallAction in legal_actions:
                     return CallAction()
             if my_pip == 0 and continue_cost < ev:
                 return self.raise_by(min_raise + continue_cost, round_state)
             if continue_cost < ev and continue_cost < 20:
-                return CallAction()
+                if CallAction in legal_actions:
+                    return CallAction()
         else:
-            # print(my_stack, continue_cost, ev)
+            print("\t\t", my_stack, pot_size, continue_cost, ev, equity)
             if ev < 0:
+                print(self.check_fold(legal_actions), legal_actions)
                 return self.check_fold(legal_actions)
-            if continue_cost < ev:
+            if continue_cost < ev and equity > .5:
                 return self.raise_by(min_raise + continue_cost, round_state)
             if continue_cost < ev * 2:
                 if CallAction in legal_actions:
@@ -303,10 +306,10 @@ class Player(Bot):
         return (equity * pot_size
                 + equity * my_bounty_prob * bounty_size
                 - (1 - equity) * continue_cost
-                - (1 - equity) * opp_bounty_prob * bounty_size)
+                - (1 - equity) * opp_bounty_prob * bounty_size), equity
 
     def check_fold(self, legal_actions):
-        return CheckAction in legal_actions and CheckAction() or FoldAction()
+        return CheckAction() if CheckAction in legal_actions else FoldAction()
 
     def raise_by(self, amount, round_state):
         legal_actions = round_state.legal_actions()

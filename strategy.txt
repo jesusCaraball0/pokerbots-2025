@@ -1,0 +1,46 @@
+general util:
+- solving for ideal raise amount
+    - use ev formula and solve for 0 or an inequality for some threshold
+    ev = (equity * pot_size
+            + equity * my_bounty_prob * bounty_size
+            - (1 - equity) * continue_cost
+            - (1 - equity) * opp_bounty_prob * bounty_size)
+
+    - bounty_size = bounty_size + continue_cost / 2
+    - pot_size = pot_size + continue_cost
+    threshold < (equity * (pot_size + continue_cost)
+                + equity * my_bounty_prob * (bounty_size + continue_cost / 2)
+                - (1 - equity) * raise_amount
+                - (1 - equity) * opp_bounty_prob * (bounty_size + continue_cost / 2))
+
+    raise_amount + threshold < ((equity * (pot_size + continue_cost)
+                                + equity * my_bounty_prob * (bounty_size + continue_cost / 2)
+                                - (1 - equity) * opp_bounty_prob * (bounty_size + continue_cost / 2))
+                                / (1 - equity))
+
+raiseamount + threshold < ((equity * (potsize + continue) + equity * mybountyprob * (bountysize + continue / 2) - (1 - equity) * opp_bountyprob * (bountysize + continue / 2)) / (1 - equity))
+((equity * (potsize + continue) + equity * mybountyprob * (bountysize + continue / 2) - (1 - equity) * oppbountyprob * (bountysize + continue / 2)) / (1 - equity))
+((q * p + q * m * (p / 2 + 10) - (1 - q) * o * (p / 2 + 10)) / (1 - q))
+
+
+(equity * pot_size
++ equity * my_bounty_prob * bounty_size
+- (1 - equity) * continue_cost
+- (1 - equity) * opp_bounty_prob * bounty_size)
+
+(q * p
++ q * m * (p / 2 + 10)
+- (1 - q) * 0
+- (1 - q) * o * bounty_size)
+
+(q * p + q * m * (p / 2 + 10) - (1 - q) * c - (1 - q) * o * (p / 2 + 10))
+
+(q * (p + c) + q * m * ((p + c) / 2 + 10) - (1 - q) * r - (1 - q) * o * ((p + c) / 2 + 10))
+
+
+
+
+
+y=(q*p+q*m*(p/2+10)-(1-q)*c-(1-q)*o*(p/2+10))
+(q*(p+c)+q*m*((p+c)/2+10)-(1-q)*r-(1-q)*o*((p+c)/2+10))
+r=x

@@ -374,7 +374,7 @@ class Player(Bot):
         return delta / trials
 
     def check_fold(self, legal_actions):
-        return CheckAction in legal_actions and CheckAction() or FoldAction()
+        return CheckAction() if CheckAction in legal_actions else FoldAction()
 
     def raise_by(self, amount, round_state):
         legal_actions = round_state.legal_actions()
