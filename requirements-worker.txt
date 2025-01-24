@@ -1,0 +1,6 @@
+
+Cython==0.29.21
+eval7==0.1.8
+numpy==1.20.0
+pandas==1.2.0
+torch==1.13.1
