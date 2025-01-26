@@ -181,6 +181,7 @@ class Player(Bot):
 
 
         # strategic fold and tank blinds
+        # self.auto_fold = False
         if self.auto_fold:
             # prefer fold over check, prevent opp from seeing more cards
             return FoldAction()

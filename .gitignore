@@ -9,3 +9,5 @@ gamelog.txt
 build/
 *.zip
 config.py
+engine fast.py
+dqn_bot

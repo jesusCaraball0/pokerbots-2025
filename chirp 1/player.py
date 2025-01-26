@@ -16,6 +16,17 @@ def rate_hand(hand):
     return RATINGS[eval7.evaluate(hand)]
 
 
+cache = set()
+starting_hands = []
+for rank1 in eval7.ranks:
+    for rank2 in eval7.ranks:
+        hand_key = eval7.evaluate([eval7.Card(card) for card in [rank1 + "s", rank2 + "c"]])
+        if hand_key not in cache:
+            cache.add(hand_key)
+            starting_hands.append(rank1 + rank2)
+range_all = eval7.HandRange(",".join(starting_hands))
+
+
 class Player(Bot):
     '''
     chirp
@@ -28,10 +39,12 @@ class Player(Bot):
         self.chop_counter = 0
         self.call_win_counter = {}
         self.time_thinking = 0
+        self.num_evals = 0
 
         # game states
         self.auto_fold = False
         self.opp_projected_win = False
+        self.opp_call_win_counter = {}
 
         # round states
         self.opp_bounty = None
@@ -82,12 +95,12 @@ class Player(Bot):
 
         # opp will probably win, play more risky before they start tanking blinds
         if not self.auto_fold:
-            if opp_bankroll > blind_cost + bounty_rate * .8:
+            if opp_bankroll > blind_cost + bounty_rate * bounty_cost: # .8
                 if not self.opp_projected_win:
                     print("opp projected to win, be more agressive", round_num)
                     self.opp_projected_win = True
             elif self.opp_projected_win:
-                if opp_bankroll < blind_cost:
+                if opp_bankroll < blind_cost * .2:
                     print("INVERTED LOSS, opp was originally projected to win", round_num)
                     self.opp_projected_win = False
 
@@ -129,6 +142,12 @@ class Player(Bot):
             else:
                 self.call_win_counter[round_num] = 0
 
+        if opp_contrib > (bool(1 - active) and BIG_BLIND or SMALL_BLIND):
+            if my_delta > 0:
+                self.opp_call_win_counter[round_num] = 1
+            else:
+                self.opp_call_win_counter[round_num] = 0
+
         if my_contrib < opp_contrib and not self.auto_fold:
             self.fold_counter += 1
 
@@ -139,12 +158,16 @@ class Player(Bot):
         if round_num == NUM_ROUNDS:
             call_win_counter = sum(self.call_win_counter.values())
             num_calls = len(self.call_win_counter)
+            opp_call_win_counter = sum(self.opp_call_win_counter.values())
+            opp_num_calls = len(self.opp_call_win_counter)
 
             print("\nStats:")
             print("Fold %:", self.fold_counter / NUM_ROUNDS * 100, self.fold_counter)
             print("Chop %:", self.chop_counter / NUM_ROUNDS * 100, self.chop_counter)
             print("Call Win %:", call_win_counter / num_calls * 100, call_win_counter, num_calls)
+            print("Opp Call Win %:", opp_call_win_counter / opp_num_calls * 100, opp_call_win_counter, opp_num_calls)
             print("Time Spent Thinking (s):", round(self.time_thinking, 2))
+            print("Avg Time Spent Thinking (ms):", self.num_evals, round(self.time_thinking / max(self.num_evals, 1) * 1000, 2))
             if self.auto_fold:
                 print("\nAUTO FOLDED" * 10)
 
@@ -168,6 +191,7 @@ class Player(Bot):
         pot_size = my_contrib + opp_contrib
         min_raise, max_raise = round_state.raise_bounds()
         min_raise = min(min_raise + BIG_BLIND * random.randint(2, 4), max_raise) # 3, 18
+        pot_odds = continue_cost / pot_size
 
         my_cards = [eval7.Card(card) for card in my_cards]
         board_cards = [eval7.Card(card) for card in board_cards]
@@ -185,9 +209,11 @@ class Player(Bot):
 
 
         # strategic fold and tank blinds
+        # self.auto_fold = False
         if self.auto_fold:
             # prefer fold over check, prevent opp from seeing more cards
-            return FoldAction()
+            if hand_rating[0] * 3 < 60: # experimental...
+                return FoldAction()
 
         # check through if only option, i.e. all in
         if my_stack == 0 and CheckAction in legal_actions:
@@ -199,25 +225,14 @@ class Player(Bot):
             if continue_cost <= BIG_BLIND * 2:
                 return self.raise_by(min_raise, round_state)
 
-        ev = 0
-        equity = 0
+        ev = equity = ev_raise = 0
         if street == 0:
             ev = hand_rating[0] * 3
         else:
-            cache = set()
-            range_all = []
-            for rank1 in eval7.ranks:
-                for rank2 in eval7.ranks:
-                    hand_key = eval7.evaluate([eval7.Card(card) for card in [rank1 + "s", rank2 + "c"]])
-                    if hand_key not in cache:
-                        cache.add(hand_key)
-                        range_all.append(rank1 + rank2)
-            range_all = eval7.HandRange(",".join(range_all))
-
-            ev, equity = self.estimate_ev(my_cards, range_all, board_cards, my_bounty, pot_size, continue_cost)
+            ev, equity, ev_raise = self.estimate_ev(my_cards, range_all, board_cards, my_bounty, pot_size, continue_cost)
 
 
-        print(round_num, my_cards, board_cards, ev, my_bankroll)
+        # print(round_num, my_cards, board_cards, ev, my_bankroll)
         if street == 0:
             if ev < 0:
                 if continue_cost > BIG_BLIND * 3 and continue_cost > abs(ev):
@@ -225,7 +240,6 @@ class Player(Bot):
                 else:
                     if CallAction in legal_actions:
                         return CallAction()
-
 
             if my_contrib + continue_cost < my_bankroll / 100:
                 if CallAction in legal_actions:
@@ -236,28 +250,62 @@ class Player(Bot):
                 if CallAction in legal_actions:
                     return CallAction()
         else:
-            print("\t\t", my_stack, pot_size, continue_cost, ev, equity)
+            # print("\t\t", my_stack, pot_size, continue_cost, ev, equity, ev_raise)
             if ev < 0:
-                print(self.check_fold(legal_actions), legal_actions)
                 return self.check_fold(legal_actions)
-            if continue_cost < ev and equity > .5:
+            if continue_cost == 0 and equity > .65 and random.random() > .35:
                 return self.raise_by(min_raise + continue_cost, round_state)
-            if continue_cost < ev * 2:
+            if continue_cost < ev and equity > .5:
+                if CheckAction in legal_actions:
+                    return CheckAction()
                 if CallAction in legal_actions:
                     return CallAction()
+                # return self.raise_by(min_raise + continue_cost, round_state)
+            if continue_cost < ev * 1.2:
+                if random.random() < equity:
+                    if CallAction in legal_actions:
+                        return CallAction()
+                # equity = self.adjusted_equity(my_cards, board_cards, pot_odds)
+                # if equity > pot_odds:
+                #     if CallAction in legal_actions:
+                #         return CallAction()
 
         return self.check_fold(legal_actions)
 
+
+    def get_ev_raise(self, equity, pot_size, continue_cost, my_bounty_prob, opp_bounty_prob):
+        # pot_size += continue_cost
+        # bounty_size = math.ceil(pot_size * .5) + 10
+        # ev_raise = equity == 1 and math.inf or ((equity * pot_size
+        #             + equity * my_bounty_prob * bounty_size
+        #             - (1 - equity) * opp_bounty_prob * bounty_size)
+        #             / (1 - equity))
+        ev_raise = pot_size / (1 / max(min(equity, .5), 0) - 1)
+        # print("EV RAISE:", ev_raise, my_bounty_prob, opp_bounty_prob)
+        return ev_raise
+
+    def adjusted_equity(self, my_cards, board_cards, pot_odds):
+        t0 = time.time()
+        pot_odds = max(pot_odds, .5) / 1.5
+        num = 0
+        avg = 0
+
+        for hand in starting_hands:
+            equity = eval7.py_hand_vs_range_monte_carlo(my_cards, eval7.HandRange(hand), board_cards, 1500)
+            if (1 - equity) > pot_odds:
+                num += 1
+                avg += equity
+        self.time_thinking += time.time() - t0
+        return num != 0 and avg / num or 1
 
     def estimate_ev(self, my_cards, opp_range, board_cards, my_bounty, pot_size, continue_cost):
         t0 = time.time()
         streets_left = 5 - len(board_cards)
         equity = (eval7.py_hand_vs_range_exact(my_cards, opp_range, board_cards) if streets_left == 0 else
-                eval7.py_hand_vs_range_monte_carlo(my_cards, opp_range, board_cards, 500000))
+                eval7.py_hand_vs_range_monte_carlo(my_cards, opp_range, board_cards, 3500)) # 1000000, 500000, ~150000, 50000, 3500
         bounty_size = math.ceil(pot_size * .5) + 10
 
         deck = eval7.Deck()
-        deck.shuffle()
         for card in my_cards + board_cards:
             deck.cards.remove(card)
         cards_left = len(deck.cards) # - 2
@@ -303,10 +351,15 @@ class Player(Bot):
 
         # print(equity, pot_size, continue_cost, str(round((time.time() - t0) * 1000, 2)) + " ms")
         self.time_thinking += time.time() - t0
-        return (equity * pot_size
+        self.num_evals += 1
+        return ((equity * pot_size
                 + equity * my_bounty_prob * bounty_size
+                - (equity * (1 - equity)) * (my_bounty_prob * (1 - opp_bounty_prob)) * bounty_size / 2
                 - (1 - equity) * continue_cost
-                - (1 - equity) * opp_bounty_prob * bounty_size), equity
+                - (1 - equity) * opp_bounty_prob * bounty_size
+                + ((1 - equity) * equity) * (opp_bounty_prob * (1 - my_bounty_prob)) * bounty_size / 2),
+                equity,
+                self.get_ev_raise(equity, pot_size, continue_cost, my_bounty_prob, opp_bounty_prob))
 
     def check_fold(self, legal_actions):
         return CheckAction() if CheckAction in legal_actions else FoldAction()
