@@ -82,7 +82,7 @@ class Player(Bot):
         # forgot that bounties change
         # assume i = 0, i.e. 4/50 + 46/50  * 4/49
 
-        bounty_rate = (4/50 + 46/50 * 4/49) * 1.1
+        bounty_rate = (4/50 + 46/50 * 4/49) * 1.15
         max_payment = blind_cost + math.ceil(bounty_cost)
         remaining_payment = blind_cost + math.ceil(bounty_cost * bounty_rate) # fold if above this threshold
 
@@ -115,6 +115,7 @@ class Player(Bot):
         board_cards = previous_state.deck[:street]
         my_contrib = STARTING_STACK - previous_state.stacks[active]
         opp_contrib = STARTING_STACK - previous_state.stacks[1 - active]
+        time_used = 60 - game_state.game_clock
 
 
         # discern opponent bounty
@@ -167,7 +168,8 @@ class Player(Bot):
             print("Call Win %:", call_win_counter / num_calls * 100, call_win_counter, num_calls)
             print("Opp Call Win %:", opp_call_win_counter / opp_num_calls * 100, opp_call_win_counter, opp_num_calls)
             print("Time Spent Thinking (s):", round(self.time_thinking, 2))
-            print("Avg Time Spent Thinking (ms):", self.num_evals, round(self.time_thinking / max(self.num_evals, 1) * 1000, 2))
+            print("Avg Time Spent Thinking (ms):", round(self.time_thinking / max(self.num_evals, 1) * 1000, 2) , f"(x{self.num_evals})")
+            print("Total Time Used (s):", round(time_used, 2), f"(d={round(time_used - self.time_thinking, 2)})")
             if self.auto_fold:
                 print("\nAUTO FOLDED" * 10)
 
@@ -197,8 +199,10 @@ class Player(Bot):
         board_cards = [eval7.Card(card) for card in board_cards]
         cards = my_cards + board_cards
         hole_type = eval7.handtype(eval7.evaluate(my_cards))
-        board_type = eval7.handtype(eval7.evaluate(board_cards))
-        hand_type = eval7.handtype(eval7.evaluate(cards))
+        board_eval = eval7.evaluate(board_cards)
+        hand_eval = eval7.evaluate(cards)
+        board_type = eval7.handtype(board_eval)
+        hand_type = eval7.handtype(hand_eval)
         hand_suited = my_cards[0].suit == my_cards[1].suit
         hand_rating = rate_hand(my_cards)
 
@@ -250,11 +254,83 @@ class Player(Bot):
                 if CallAction in legal_actions:
                     return CallAction()
         else:
-            # print("\t\t", my_stack, pot_size, continue_cost, ev, equity, ev_raise)
+            if hand_type != "High Card":
+                if hand_type == board_type:
+                    # we are essentially playing the board, besides some edge cases
+                    # in these edge cases, if we have the near-nuts, we will tend to play agressively, which may not be optimal, but it prevents us from getting bullied
+                    # otherwise, play as reserved yet agressive as possible
+
+                    proxy_board_cards = []
+                    proxy_board_ranks = set()
+                    for card in board_cards:
+                        if eval7.handtype(eval7.evaluate([p_card for p_card in board_cards if p_card != card])) != hand_type:
+                            proxy_board_cards.append(card)
+                            proxy_board_ranks.add(card.rank)
+
+                    proxy_cards = []
+                    proxy_ranks = set()
+                    for card in cards:
+                        for rank in proxy_board_ranks:
+                            if eval7.handtype(eval7.evaluate([p_card for p_card in cards if p_card != card and p_card.rank != rank])) == hand_type:
+                                proxy_cards.append(card)
+                                proxy_ranks.add(card.rank)
+                                break
+                    proxy_ranks = proxy_ranks.union(proxy_board_ranks)
+
+                    my_rank = max(proxy_ranks)
+                    board_rank = max(proxy_board_ranks)
+                    if my_rank > board_rank:
+                        print("HIGHER SET", round_num, hand_type, my_cards, board_cards)
+
+
+                    adj_equity = self.adjusted_equity(my_cards, board_cards, equity, hand_type, pot_odds)
+                    # TODO: go all in if board is already the (near) nuts
+
+                    if hand_type == "Pair":
+                        if random.random() < adj_equity - pot_odds:
+                            # print("\t\t\t\ttest", hand_type, adj_equity, my_cards, board_cards, min_raise + continue_cost)
+                            return self.raise_by(min_raise + continue_cost, round_state)
+                        pass
+                    elif hand_type == "Two Pair" or hand_type == "Trips":
+                        # opp would need make higher two pair or a boat
+                        if hand_type == "Two Pair" and my_rank > board_rank:
+                            return self.raise_by(min_raise + continue_cost, round_state)
+
+                        # opp would need to make higher trips or a boat
+                        if hand_type == "Trips" and my_rank > board_rank:
+                            return self.raise_by((min_raise + continue_cost) * 2, round_state)
+
+                        print(round_num, hand_type, equity, adj_equity, pot_odds, my_cards, board_cards)
+                        pass
+                    elif hand_type == "Full House" or hand_type == "Quads":
+                        # opp would need a higher pocket pair
+                        if hand_type == "Full House" and my_rank > board_rank:
+                            return self.raise_by((min_raise + continue_cost) * 2, round_state)
+
+                        pass
+                    elif hand_type == "Straight" or hand_type == "Flush":
+                        # opp would need back-to-back connectors
+                        if hand_type == "Straight" and my_rank > board_rank:
+                            return self.raise_by((min_raise + continue_cost) * 2, round_state)
+
+                        # TODO: check for num of higher flushes, and eval the chance they have the higher suits
+                        # TODO: if its a mid straight (specifically not a high straight), we are probably going to chop
+                    else:
+                        # i mean, very small chance to have a higher straight flush, the num of max outs is literally 1
+                        # hope opp doesn't realize
+                        print("ANOMALY !!!!!", round_num, hand_type, my_cards, board_cards, my_stack, opp_stack)
+                        return self.raise_by(max_raise, round_state)
+                else:
+                    if hand_type == "Pair":
+                        pass
+                    else:
+                        pass
+
             if ev <= 0:
                 if random.random() > equity * .8:
                     return self.check_fold(legal_actions)
                 else:
+                    # bluff ?
                     ev += BIG_BLIND * 3
                     equity += .3
             if continue_cost == 0 and equity > .65 and random.random() > .35:
@@ -264,8 +340,7 @@ class Player(Bot):
                     return CheckAction()
                 if CallAction in legal_actions:
                     return CallAction()
-                # return self.raise_by(min_raise + continue_cost, round_state)
-            if continue_cost < ev * .7: # 1.2, .7
+            if continue_cost < ev * 1.2: # 1.2, .7, 1
                 if CallAction in legal_actions:
                     if random.random() < equity * 1.5:
                             return CallAction()
@@ -288,19 +363,27 @@ class Player(Bot):
         # print("EV RAISE:", ev_raise, my_bounty_prob, opp_bounty_prob)
         return ev_raise
 
-    def adjusted_equity(self, my_cards, board_cards, pot_odds):
+    def adjusted_equity(self, my_cards, board_cards, equity, hand_type, pot_odds):
         t0 = time.time()
-        pot_odds = max(pot_odds, .5) / 1.5
-        num = 0
-        avg = 0
+        # pot_odds = max(pot_odds, .5) / 1.5
+        # num = 0
+        # avg = 0
 
-        for hand in starting_hands:
-            equity = eval7.py_hand_vs_range_monte_carlo(my_cards, eval7.HandRange(hand), board_cards, 1500)
-            if (1 - equity) > pot_odds:
-                num += 1
-                avg += equity
+        # for hand in starting_hands:
+        #     equity = eval7.py_hand_vs_range_monte_carlo(my_cards, eval7.HandRange(hand), board_cards, 1500)
+        #     if (1 - equity) > pot_odds:
+        #         num += 1
+        #         avg += equity
+        # return num != 0 and avg / num or 1
+
+        # pairs = eval7.HandRange("AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22")
+        # equity = eval7.py_hand_vs_range_monte_carlo(my_cards, pairs, board_cards, 3500)
+
+        equity = equity - pot_odds
+
         self.time_thinking += time.time() - t0
-        return num != 0 and avg / num or 1
+        self.num_evals += 1
+        return equity
 
     def estimate_ev(self, my_cards, opp_range, board_cards, my_bounty, pot_size, continue_cost):
         t0 = time.time()
@@ -376,7 +459,7 @@ class Player(Bot):
         if amount <= 1:
             # amount = (amount) * (max_raise - min_raise)
             amount = amount * STARTING_STACK + min_raise / 2
-        amount = amount * (1 + (random.random() - .5) / 5)
+        amount = amount * (1 + (random.random() - .5) / 5 * 2) # +/- 20%
         amount = math.floor(min(max(amount, min_raise), max_raise))
 
         if amount > STARTING_STACK / 2.6: # just all in
