@@ -280,19 +280,25 @@ class Player(Bot):
                     my_rank = max(proxy_ranks)
                     board_rank = max(proxy_board_ranks)
                     if my_rank > board_rank:
-                        print("HIGHER SET", round_num, hand_type, my_cards, board_cards)
+                        print(round_num, "HIGHER SET", hand_type, my_cards, board_cards)
 
 
-                    adj_equity = self.adjusted_equity(my_cards, board_cards, equity, hand_type, pot_odds)
-                    # TODO: go all in if board is already the (near) nuts
+                    adj_equity = self.adjusted_equity(my_cards, board_cards, equity, hand_type, pot_odds) # TODO: needs to be tuned!!!!!!!!
+                    # TODO: go all in if board is already the (near) nuts, hope opp doesn't notice
 
                     if hand_type == "Pair":
-                        if random.random() < adj_equity - pot_odds:
+                        if random.random() < adj_equity * 2: # TODO: TUNE THE FUNC!!! :(
                             # print("\t\t\t\ttest", hand_type, adj_equity, my_cards, board_cards, min_raise + continue_cost)
-                            return self.raise_by(min_raise + continue_cost, round_state)
-                        pass
+                            if continue_cost == 0:
+                                return self.raise_by(min_raise + continue_cost, round_state)
+                            else:
+                                # hurts my head, need to do the logic to make sure we arent calling all-ins all the time
+                                # but that might already be included in the previous random.random(), in which case it doesn't really matter
+                                # god idfk, this is good enough for now though
+                                if CallAction in legal_actions:
+                                    return CallAction()
                     elif hand_type == "Two Pair" or hand_type == "Trips":
-                        # opp would need make higher two pair or a boat
+                        # opp would need make higher two pair or a boats
                         if hand_type == "Two Pair" and my_rank > board_rank:
                             return self.raise_by(min_raise + continue_cost, round_state)
 
@@ -325,6 +331,8 @@ class Player(Bot):
                         pass
                     else:
                         pass
+
+            # the old base logic, we'll use it as a fallback for any yet-undefined behavior
 
             if ev <= 0:
                 if random.random() > equity * .8:
