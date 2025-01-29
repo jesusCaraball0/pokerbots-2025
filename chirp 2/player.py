@@ -216,7 +216,7 @@ class Player(Bot):
         # self.auto_fold = False
         if self.auto_fold:
             # prefer fold over check, prevent opp from seeing more cards
-            if hand_rating[0] * 3 < 60: # experimental...
+            if hand_rating[0] * 3 < 60: # TODO: tune experimental values
                 return FoldAction()
 
         # check through if only option, i.e. all in
@@ -239,13 +239,14 @@ class Player(Bot):
         # print(round_num, my_cards, board_cards, ev, my_bankroll)
         if street == 0:
             if ev < 0:
+                # TODO: play tighter with negative ev (i.e. maybe fold more?)
                 if continue_cost > BIG_BLIND * 3 and continue_cost > abs(ev):
                     return self.check_fold(legal_actions)
                 else:
                     if CallAction in legal_actions:
                         return CallAction()
 
-            if my_contrib + continue_cost < my_bankroll / 100:
+            if my_contrib + continue_cost < my_bankroll / 100: # TODO: tune experimental value
                 if CallAction in legal_actions:
                     return CallAction()
             if my_pip == 0 and continue_cost < ev:
@@ -460,6 +461,7 @@ class Player(Bot):
         return CheckAction() if CheckAction in legal_actions else FoldAction()
 
     def raise_by(self, amount, round_state):
+        # TODO: figure out standard practice for our team for what we mean by raising i.e. raising to an amount vs raising by
         legal_actions = round_state.legal_actions()
         min_raise, max_raise = round_state.raise_bounds()
         o_amount = amount
