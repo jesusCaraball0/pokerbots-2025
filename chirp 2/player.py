@@ -251,11 +251,15 @@ class Player(Bot):
 
         # all-in/limp-raise bots
         # we will just play super tight lol?
-        if ev > 60 and (continue_cost > BIG_BLIND or my_pip > 20):
+        if street == 0 and ev > 60 and (continue_cost > BIG_BLIND or my_pip > 20):
+            ev2, equity, ev_raise = self.estimate_ev(my_cards, range_all, board_cards, my_bounty, pot_size, continue_cost)
             if (avg_pot > 250 and num_pots > 3 or
                 avg_blind > 35 and num_blinds > 3 or
-                len(self.opp_call_win_counter) / round_num > .65 and round_num > 500 and random.random() < .75 or
                 avg_blind > 15 and random.random() < .5):
+                return self.raise_by(max_raise, round_state)
+            if len(self.opp_call_win_counter) / round_num > .65 and round_num > 500:
+            #     return self.raise_by(max_raise, round_state)
+            # if len(self.opp_call_win_counter) / round_num > .6 and round_num > 500 and random.random() < equity:
                 return self.raise_by(max_raise, round_state)
 
         if self.opp_projected_win:
