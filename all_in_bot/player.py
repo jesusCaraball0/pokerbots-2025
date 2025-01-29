@@ -64,7 +64,7 @@ class Player(Bot):
         #street = previous_state.street  # 0, 3, 4, or 5 representing when this round ended
         #my_cards = previous_state.hands[active]  # your cards
         #opp_cards = previous_state.hands[1-active]  # opponent's cards or [] if not revealed
-        
+
         my_bounty_hit = terminal_state.bounty_hits[active]  # True if you hit bounty
         opponent_bounty_hit = terminal_state.bounty_hits[1-active] # True if opponent hit bounty
         bounty_rank = previous_state.bounties[active]  # your bounty rank
@@ -107,7 +107,8 @@ class Player(Bot):
            min_cost = min_raise - my_pip  # the cost of a minimum bet/raise
            max_cost = max_raise - my_pip  # the cost of a maximum bet/raise
         if RaiseAction in legal_actions:
-            if random.random() < 0.5:
+            if random.random() < 1: # .5
+                # return RaiseAction(max_raise)
                 return RaiseAction(min_raise)
         if CheckAction in legal_actions:  # check-call
             return CheckAction()

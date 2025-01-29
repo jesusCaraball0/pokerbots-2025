@@ -45,6 +45,8 @@ class Player(Bot):
         self.auto_fold = False
         self.opp_projected_win = False
         self.opp_call_win_counter = {}
+        self.running_blind = {0:(SMALL_BLIND + BIG_BLIND) / 2}
+        self.running_pot = {0:0}
 
         # round states
         self.opp_bounty = None
@@ -132,6 +134,10 @@ class Player(Bot):
             if len(self.opp_bounty_pos) == 1: # bounty determined
                 self.opp_bounty = next(iter(self.opp_bounty_pos))
 
+        if round_num % 51 == 0:
+            self.running_blind = {}
+            self.running_pot = {}
+
 
         # record stats
         if my_delta == 0:
@@ -158,9 +164,9 @@ class Player(Bot):
         # match over
         if round_num == NUM_ROUNDS:
             call_win_counter = sum(self.call_win_counter.values())
-            num_calls = len(self.call_win_counter)
+            num_calls = max(len(self.call_win_counter), 1)
             opp_call_win_counter = sum(self.opp_call_win_counter.values())
-            opp_num_calls = len(self.opp_call_win_counter)
+            opp_num_calls = max(len(self.opp_call_win_counter), 1)
 
             print("\nStats:")
             print("Fold %:", self.fold_counter / NUM_ROUNDS * 100, self.fold_counter)
@@ -212,6 +218,13 @@ class Player(Bot):
                 my_high_rank = card.rank
 
 
+        if street == 0:
+            self.running_blind[round_num] = opp_contrib
+        self.running_pot[round_num] = opp_contrib
+        num_pots = len(self.running_pot)
+        avg_pot = sum(self.running_pot.values()) / max(num_pots, 1) or (SMALL_BLIND + BIG_BLIND) / 2
+
+
         # strategic fold and tank blinds
         # self.auto_fold = False
         if self.auto_fold:
@@ -229,11 +242,18 @@ class Player(Bot):
             if continue_cost <= BIG_BLIND * 2:
                 return self.raise_by(min_raise, round_state)
 
+
         ev = equity = ev_raise = 0
         if street == 0:
             ev = hand_rating[0] * 3
         else:
             ev, equity, ev_raise = self.estimate_ev(my_cards, range_all, board_cards, my_bounty, pot_size, continue_cost)
+
+
+        if avg_pot > 250 and num_pots > 3:
+            if ev > 60:
+                if CallAction in legal_actions:
+                    return CallAction()
 
 
         # print(round_num, my_cards, board_cards, ev, my_bankroll)
@@ -290,7 +310,7 @@ class Player(Bot):
                     if hand_type == "Pair":
                         if random.random() < adj_equity * 2: # TODO: TUNE THE FUNC!!! :(
                             # print("\t\t\t\ttest", hand_type, adj_equity, my_cards, board_cards, min_raise + continue_cost)
-                            if continue_cost == 0:
+                            if continue_cost < BIG_BLIND * 3:
                                 return self.raise_by(min_raise + continue_cost, round_state)
                             else:
                                 # hurts my head, need to do the logic to make sure we arent calling all-ins all the time
@@ -307,14 +327,15 @@ class Player(Bot):
                         if hand_type == "Trips" and my_rank > board_rank:
                             return self.raise_by((min_raise + continue_cost) * 2, round_state)
 
-                        print(round_num, hand_type, equity, adj_equity, pot_odds, my_cards, board_cards)
-                        pass
+                        if continue_cost > 0:
+                            if random.random() < adj_equity:
+                                if CallAction in legal_actions:
+                                    return CallAction()
+                        # print(round_num, hand_type, equity, adj_equity, pot_odds, my_cards, board_cards)
                     elif hand_type == "Full House" or hand_type == "Quads":
                         # opp would need a higher pocket pair
-                        if hand_type == "Full House" and my_rank > board_rank:
+                        if hand_type == "Full House" and (my_rank > board_rank or hand_eval > board_eval):
                             return self.raise_by((min_raise + continue_cost) * 2, round_state)
-
-                        pass
                     elif hand_type == "Straight" or hand_type == "Flush":
                         # opp would need back-to-back connectors
                         if hand_type == "Straight" and my_rank > board_rank:
