@@ -97,13 +97,13 @@ class Player(Bot):
 
         # opp will probably win, play more risky before they start tanking blinds
         if not self.auto_fold:
-            if opp_bankroll > blind_cost + bounty_rate * bounty_cost: # .8
+            if opp_bankroll > blind_cost + bounty_rate * bounty_cost - 200: # .8
                 if not self.opp_projected_win:
-                    print("opp projected to win, be more agressive", round_num)
+                    print("opp projected to win, be more agressive", round_num, opp_bankroll)
                     self.opp_projected_win = True
             elif self.opp_projected_win:
                 if opp_bankroll < blind_cost * .2:
-                    print("INVERTED LOSS, opp was originally projected to win", round_num)
+                    print("INVERTED LOSS, opp was originally projected to win", round_num, opp_bankroll)
                     self.opp_projected_win = False
 
 
@@ -167,12 +167,15 @@ class Player(Bot):
             num_calls = max(len(self.call_win_counter), 1)
             opp_call_win_counter = sum(self.opp_call_win_counter.values())
             opp_num_calls = max(len(self.opp_call_win_counter), 1)
+            avg_blind = sum(self.running_blind.values()) / max(len(self.running_blind), 1)
+            avg_pot = sum(self.running_pot.values()) / max(len(self.running_pot), 1)
 
             print("\nStats:")
             print("Fold %:", self.fold_counter / NUM_ROUNDS * 100, self.fold_counter)
             print("Chop %:", self.chop_counter / NUM_ROUNDS * 100, self.chop_counter)
             print("Call Win %:", call_win_counter / num_calls * 100, call_win_counter, num_calls)
             print("Opp Call Win %:", opp_call_win_counter / opp_num_calls * 100, opp_call_win_counter, opp_num_calls)
+            print("Running Avg. Blind & Pot", avg_blind, avg_pot)
             print("Time Spent Thinking (s):", round(self.time_thinking, 2))
             print("Avg Time Spent Thinking (ms):", round(self.time_thinking / max(self.num_evals, 1) * 1000, 2) , f"(x{self.num_evals})")
             print("Total Time Used (s):", round(time_used, 2), f"(d={round(time_used - self.time_thinking, 2)})")
@@ -248,10 +251,10 @@ class Player(Bot):
 
         # all-in/limp-raise bots
         # we will just play super tight lol?
-        if ev > 60:
+        if ev > 60 and (continue_cost > BIG_BLIND or my_pip > 20):
             if (avg_pot > 250 and num_pots > 3 or
                 avg_blind > 35 and num_blinds > 3 or
-                len(self.opp_call_win_counter) / round_num > .65 and round_num > 500 or
+                len(self.opp_call_win_counter) / round_num > .65 and round_num > 500 and random.random() < .75 or
                 avg_blind > 15 and random.random() < .5):
                 return self.raise_by(max_raise, round_state)
 
