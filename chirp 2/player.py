@@ -221,8 +221,10 @@ class Player(Bot):
         if street == 0:
             self.running_blind[round_num] = opp_contrib
         self.running_pot[round_num] = opp_contrib
+        num_blinds = len(self.running_blind)
         num_pots = len(self.running_pot)
-        avg_pot = sum(self.running_pot.values()) / max(num_pots, 1) or (SMALL_BLIND + BIG_BLIND) / 2
+        avg_blind = sum(self.running_blind.values()) / max(num_blinds, 1)
+        avg_pot = sum(self.running_pot.values()) / max(num_pots, 1)
 
 
         # strategic fold and tank blinds
@@ -236,12 +238,6 @@ class Player(Bot):
         if my_stack == 0 and CheckAction in legal_actions:
             return CheckAction()
 
-        if self.opp_projected_win:
-            if CheckAction in legal_actions:
-                return CheckAction()
-            if continue_cost <= BIG_BLIND * 2:
-                return self.raise_by(min_raise, round_state)
-
 
         ev = equity = ev_raise = 0
         if street == 0:
@@ -250,10 +246,19 @@ class Player(Bot):
             ev, equity, ev_raise = self.estimate_ev(my_cards, range_all, board_cards, my_bounty, pot_size, continue_cost)
 
 
-        if avg_pot > 250 and num_pots > 3:
-            if ev > 60:
-                if CallAction in legal_actions:
-                    return CallAction()
+        # all-in/limp-raise bots
+        # we will just play super tight lol?
+        if ev > 60:
+            if (avg_pot > 250 and num_pots > 3 or
+                avg_blind > 25 and num_blinds > 3 or
+                len(self.opp_call_win_counter) / round_num > .6 and round_num > 500):
+                return self.raise_by(max_raise, round_state)
+
+        if self.opp_projected_win:
+            if CheckAction in legal_actions:
+                return CheckAction()
+            if continue_cost <= BIG_BLIND * 2:
+                return self.raise_by(min_raise, round_state)
 
 
         # print(round_num, my_cards, board_cards, ev, my_bankroll)
