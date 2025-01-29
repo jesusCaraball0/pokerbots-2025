@@ -97,7 +97,7 @@ class Player(Bot):
 
         # opp will probably win, play more risky before they start tanking blinds
         if not self.auto_fold:
-            if opp_bankroll > blind_cost + bounty_rate * bounty_cost - 200: # .8
+            if opp_bankroll > blind_cost + bounty_rate * bounty_cost * .8 - 100: # .8
                 if not self.opp_projected_win:
                     print("opp projected to win, be more agressive", round_num, opp_bankroll)
                     self.opp_projected_win = True
@@ -247,6 +247,7 @@ class Player(Bot):
             ev = hand_rating[0] * 3
         else:
             ev, equity, ev_raise = self.estimate_ev(my_cards, range_all, board_cards, my_bounty, pot_size, continue_cost)
+            ev_raise = max(min_raise + continue_cost, ev_raise)
 
 
         # all-in/limp-raise bots
@@ -261,6 +262,16 @@ class Player(Bot):
             #     return self.raise_by(max_raise, round_state)
             # if len(self.opp_call_win_counter) / round_num > .6 and round_num > 500 and random.random() < equity:
                 return self.raise_by(max_raise, round_state)
+
+        if self.opp_projected_win:
+            if ev > 60 or random.random() < .35:
+                return self.raise_by(min_raise, round_state)
+            if CheckAction in legal_actions:
+                return CheckAction()
+            if continue_cost <= BIG_BLIND * 2:
+                return self.raise_by(min_raise, round_state)
+            ev += 20
+            equity += .2
 
 
         # print(round_num, my_cards, board_cards, ev, my_bankroll)
@@ -283,10 +294,13 @@ class Player(Bot):
                     return CallAction()
         else:
             if hand_type != "High Card":
+                adj_equity = self.adjusted_equity(my_cards, board_cards, equity, hand_type, pot_odds) # TODO: needs to be tuned!!!!!!!!
+
                 if hand_type == board_type:
                     # we are essentially playing the board, besides some edge cases
                     # in these edge cases, if we have the near-nuts, we will tend to play agressively, which may not be optimal, but it prevents us from getting bullied
                     # otherwise, play as reserved yet agressive as possible
+
 
                     proxy_board_cards = []
                     proxy_board_ranks = set()
@@ -310,9 +324,8 @@ class Player(Bot):
                     if my_rank > board_rank:
                         print(round_num, "HIGHER SET", hand_type, my_cards, board_cards)
 
-
-                    adj_equity = self.adjusted_equity(my_cards, board_cards, equity, hand_type, pot_odds) # TODO: needs to be tuned!!!!!!!!
                     # TODO: go all in if board is already the (near) nuts, hope opp doesn't notice
+
 
                     if hand_type == "Pair":
                         if random.random() < adj_equity * 2: # TODO: TUNE THE FUNC!!! :(
@@ -326,13 +339,13 @@ class Player(Bot):
                                 if CallAction in legal_actions:
                                     return CallAction()
                     elif hand_type == "Two Pair" or hand_type == "Trips":
-                        # opp would need make higher two pair or a boats
+                        # opp would need make higher two pair or a boat
                         if hand_type == "Two Pair" and my_rank > board_rank:
-                            return self.raise_by(min_raise + continue_cost, round_state)
+                            return self.raise_by(ev_raise, round_state)
 
                         # opp would need to make higher trips or a boat
                         if hand_type == "Trips" and my_rank > board_rank:
-                            return self.raise_by((min_raise + continue_cost) * 2, round_state)
+                            return self.raise_by(ev_raise * 1.5, round_state)
 
                         if continue_cost > 0:
                             if random.random() < adj_equity:
@@ -342,11 +355,17 @@ class Player(Bot):
                     elif hand_type == "Full House" or hand_type == "Quads":
                         # opp would need a higher pocket pair
                         if hand_type == "Full House" and (my_rank > board_rank or hand_eval > board_eval):
-                            return self.raise_by((min_raise + continue_cost) * 2, round_state)
+                            return self.raise_by(ev_raise * 1.5, round_state)
+
+                        # opp would need a higher kicker
+                        # TODO: implem kicker logic, for now just cross our fingers
+                        if hand_type == "Quads":
+                            return self.raise_by(max_raise, round_state)
                     elif hand_type == "Straight" or hand_type == "Flush":
                         # opp would need back-to-back connectors
                         if hand_type == "Straight" and my_rank > board_rank:
-                            return self.raise_by((min_raise + continue_cost) * 2, round_state)
+                            if not (board_rank == 3 and my_rank == 12):
+                                return self.raise_by(ev_raise * 1.5, round_state)
 
                         # TODO: check for num of higher flushes, and eval the chance they have the higher suits
                         # TODO: if its a mid straight (specifically not a high straight), we are probably going to chop
@@ -356,10 +375,48 @@ class Player(Bot):
                         print("ANOMALY !!!!!", round_num, hand_type, my_cards, board_cards, my_stack, opp_stack)
                         return self.raise_by(max_raise, round_state)
                 else:
-                    if hand_type == "Pair":
-                        pass
+                    proxy_cards = []
+                    proxy_ranks = set()
+
+                    if eval7.handtype(eval7.evaluate([my_cards[0]] + board_cards)) == eval7.handtype(eval7.evaluate([my_cards[1]] + board_cards)):
+                        new_cards = [my_cards[0]] + board_cards
+                        proxy_cards.append(my_cards[1])
+                        proxy_ranks.add(my_cards[1].rank)
+                        for card in new_cards:
+                            if eval7.handtype(eval7.evaluate([p_card for p_card in new_cards if p_card != card])) != hand_type:
+                                proxy_cards.append(card)
+                                proxy_ranks.add(card.rank)
                     else:
-                        pass
+                        for card in cards:
+                            if eval7.handtype(eval7.evaluate([p_card for p_card in cards if p_card != card])) != hand_type:
+                                proxy_cards.append(card)
+                                proxy_ranks.add(card.rank)
+                    my_rank = max(proxy_ranks)
+
+
+                    # TODO: check for straight/flush draws and evaluate if theyre in opp's range
+                    # TODO: make sure we aren't raising endlessly, check pip and call at some point
+                    # TODO: more randomness, dont just telegraph that we hit on the flop, sometimes check or small-bet
+                    # i.e. if we flop a straight, dont really want to ball out
+
+                    # print(hand_type, equity, ev, my_rank, my_cards, board_cards, proxy_ranks)
+
+                    if hand_type == "Pair":
+                        # TODO: more sophisticated logic
+                        if random.random() < adj_equity / 3.5:
+                            return self.raise_by(min_raise, round_state)
+                    elif hand_type == "Two Pair":
+                        # TODO: more sophisticated logic
+                        if random.random() < adj_equity / 3:
+                            return self.raise_by(min_raise, round_state)
+                    elif hand_type == "Trips":
+                        # TODO: more sophisticated logic
+                        if random.random() < adj_equity / 2.5:
+                            return self.raise_by(min_raise, round_state)
+                    else:
+                        # assume we are good
+                        # TODO: more logic... check kickers and equity
+                        return self.raise_by(ev_raise, round_state)
 
             # the old base logic, we'll use it as a fallback for any yet-undefined behavior
 
