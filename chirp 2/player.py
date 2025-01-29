@@ -250,8 +250,9 @@ class Player(Bot):
         # we will just play super tight lol?
         if ev > 60:
             if (avg_pot > 250 and num_pots > 3 or
-                avg_blind > 25 and num_blinds > 3 or
-                len(self.opp_call_win_counter) / round_num > .6 and round_num > 500):
+                avg_blind > 35 and num_blinds > 3 or
+                len(self.opp_call_win_counter) / round_num > .65 and round_num > 500 or
+                avg_blind > 15 and random.random() < .5):
                 return self.raise_by(max_raise, round_state)
 
         if self.opp_projected_win:
