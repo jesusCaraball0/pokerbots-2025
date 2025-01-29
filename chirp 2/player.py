@@ -247,6 +247,7 @@ class Player(Bot):
             ev = hand_rating[0] * 3
         else:
             ev, equity, ev_raise = self.estimate_ev(my_cards, range_all, board_cards, my_bounty, pot_size, continue_cost)
+            ev_raise = max(min_raise + continue_cost, ev_raise)
 
 
         # all-in/limp-raise bots
@@ -332,13 +333,13 @@ class Player(Bot):
                                 if CallAction in legal_actions:
                                     return CallAction()
                     elif hand_type == "Two Pair" or hand_type == "Trips":
-                        # opp would need make higher two pair or a boats
+                        # opp would need make higher two pair or a boat
                         if hand_type == "Two Pair" and my_rank > board_rank:
-                            return self.raise_by(min_raise + continue_cost, round_state)
+                            return self.raise_by(ev_raise, round_state)
 
                         # opp would need to make higher trips or a boat
                         if hand_type == "Trips" and my_rank > board_rank:
-                            return self.raise_by((min_raise + continue_cost) * 2, round_state)
+                            return self.raise_by(ev_raise * 1.5, round_state)
 
                         if continue_cost > 0:
                             if random.random() < adj_equity:
@@ -348,11 +349,17 @@ class Player(Bot):
                     elif hand_type == "Full House" or hand_type == "Quads":
                         # opp would need a higher pocket pair
                         if hand_type == "Full House" and (my_rank > board_rank or hand_eval > board_eval):
-                            return self.raise_by((min_raise + continue_cost) * 2, round_state)
+                            return self.raise_by(ev_raise * 1.5, round_state)
+
+                        # opp would need a higher kicker
+                        # TODO: implem kicker logic, for now just cross our fingers
+                        if hand_type == "Quads":
+                            return self.raise_by(max_raise, round_state)
                     elif hand_type == "Straight" or hand_type == "Flush":
                         # opp would need back-to-back connectors
                         if hand_type == "Straight" and my_rank > board_rank:
-                            return self.raise_by((min_raise + continue_cost) * 2, round_state)
+                            if not (board_rank == 3 and my_rank == 12):
+                                return self.raise_by(ev_raise * 1.5, round_state)
 
                         # TODO: check for num of higher flushes, and eval the chance they have the higher suits
                         # TODO: if its a mid straight (specifically not a high straight), we are probably going to chop
