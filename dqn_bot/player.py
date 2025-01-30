@@ -91,7 +91,6 @@ class Player(Bot):
 
     def get_action(self, game_state, round_state, active):
         '''
-        Where the magic happens - your code should implement this function.
         Called any time the engine needs an action from your bot.
 
         Arguments:
@@ -102,15 +101,13 @@ class Player(Bot):
         Returns:
         Your action.
         '''
-        legal_actions = round_state.legal_actions()  # the actions you are allowed to take
-        street = round_state.street  # 0, 3, 4, or 5 representing pre-flop, flop, turn, or river respectively
+        legal_actions = round_state.legal_actions()
+        street = round_state.street
 
         action, self.action_id, raise_amount = predict_action(self.model, game_state, round_state, active)
         self.state_vectors.append(self.model.preprocess_state(game_state, round_state, active))
         if street > 0:
             update_model(self.model, self.target_model, self.optimizer, self.state_vectors[-2], self.action_id, 0, self.state_vectors[-1], 0.99, False)
-
-        #print(f'{self.state_vectors[-1].tolist()}_{self.action_id}')
 
         if action == "FoldAction":
             return FoldAction()
@@ -125,6 +122,9 @@ class Player(Bot):
 
 
 def train():
+    '''
+    trains model on poker game data sourced by challending other bots on the scrimmage server
+    '''
     import ast
 
     model = PokerDQN(30, 8)

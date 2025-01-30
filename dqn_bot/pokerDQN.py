@@ -13,11 +13,11 @@ from skeleton.states import NUM_ROUNDS, STARTING_STACK, BIG_BLIND, SMALL_BLIND
 # Define the DQN model
 class PokerDQN(nn.Module):
     def __init__(self, input_size,  output_size):
-        # equity class variable
+        # equity and counter class variables
         self.cache = {}
         self.round_counter = 0
-        super(PokerDQN, self).__init__()
 
+        super(PokerDQN, self).__init__()
         # NN architechture
         layers = [nn.Linear(input_size, 128)]
         for i in range(3, 0, -1):
@@ -36,14 +36,12 @@ class PokerDQN(nn.Module):
     # Function to preprocess game state and round state into a numerical input vector
     def preprocess_state(self, game_state, round_state, active):
         """
-        Convert the game state and round state into a numerical feature vector.
-        This function must be customized based on the specific poker game and data format.
-
-        Example:
-            - Player's cards (encoded as one-hot vectors or numerical indices)
-            - Board cards (encoded similarly)
-            - Stack sizes (normalized values)
-            - Opponent action history (e.g., last action, bet amount)
+        Convert the game state and round state into a numerical feature vector. Feature vector helps the model
+        make sense of what is going on in the game. Helpful inputs include hand equity, cards, and opponent actions.
+        Arguments:
+            GameState: game state class from engine
+            RoundState: round state class from engine
+            int: active, gives the seat of the bot in a given round (BB or SB)
 
         Returns:
             torch.Tensor: Preprocessed feature vector.
@@ -102,13 +100,21 @@ class PokerDQN(nn.Module):
 # Function to predict the action using epsilon-greedy policy
 def predict_action(model, game_state, round_state, active, epsilon = 0.01):
     '''
-    takes in model and current state and performs inference to find optimal action
-    return tuple: (Action, action_id, raise_amount)
+    Predict action using epsilon-greedy policy. Action space includes fold, check, call, and 4 types of raises.
+    performs inference and predicts action with highest Q-value
+
+    Arguments:
+        PokerDQN: model instance
+        GameState: game_state object from engine
+        RoundState: round_state object from engine
+        int: active player seat (BB or SB)
+        float: epsilon gives frequency to perform a random action. Helps the model explore the action space.
+
+    Return:
+        tuple: (action (name of action), action_id (id in list of actions), raise_amount)
     '''
     # Preprocess the input state
     input_vector = model.preprocess_state(game_state, round_state, active)
-
-    # Add batch dimension (for a single example)
     input_vector = input_vector.unsqueeze(0)
 
     # define action space
@@ -119,12 +125,12 @@ def predict_action(model, game_state, round_state, active, epsilon = 0.01):
     raise_amounts = [0, 0, 0, min_raise, min(0.5*pot, max_raise), min(pot, max_raise), min(2*pot, max_raise), max_raise]
 
     if random.random() < epsilon:
-        # Explore: Random action
+        #Random action
         action_id = random.randint(0, 7)
         return ACTIONS[action_id], action_id, raise_amounts[action_id]
 
     else:
-        # Exploit: Use the model to predict the best action
+        #Use the model to predict the best action
         output = model(input_vector)
         action_id = torch.argmax(output, dim=1).item()
 
@@ -134,18 +140,18 @@ def predict_action(model, game_state, round_state, active, epsilon = 0.01):
 # Function to update the model using Q-learning
 def update_model(model, target_model, optimizer, state_vector, action_idx, reward, next_state_vector, gamma, terminal):
     """
-    Update the model using the Q-learning formula, accounting for terminal and non-terminal states.
+    Update the model using the Q-learning formula. Reward is the Q-value of the next state or the delta if the round ended.
 
     Args:
-        model (PokerDQN): The current Q-network.
-        target_model (PokerDQN): The target Q-network.
-        optimizer (Optimizer): Optimizer for the model.
-        state_vector (torch.Tensor): Current state as a preprocessed input vector.
-        action_idx (int): Index of the action taken.
-        reward (float): Reward (delta) received from the action, if any.
-        next_state_vector (torch.Tensor): Next state as a preprocessed input vector.
-        gamma (float): Discount factor for future rewards.
-        terminal (bool): Whether the current state is a terminal state.
+        PokerDQN: model is he current Q-network.
+        PokerDQN: target_model is the target Q-network; stabalizes training
+        Optimizer: Optimizer for the model.
+        torch.Tensor: state_vector is the current state as a preprocessed input vector.
+        int: action_id is the index of the action taken.
+        int: reward (delta) received from the action, if any.
+        torch.Tensor: next_state_vector as a preprocessed input vector.
+        float: Gamma is a discount factor for future rewards.
+        bool: Terminal true if round ended.
     """
     # Add batch dimension to state vectors
     state_vector = state_vector.unsqueeze(0)
@@ -165,11 +171,11 @@ def update_model(model, target_model, optimizer, state_vector, action_idx, rewar
             target_q_value = reward + gamma * max_next_q_value
 
     # Compute loss
-    loss = huber_loss(q_value, target_q_value, 100) # Huber rather than MSE to handle outlier hands
+    loss = huber_loss(q_value, target_q_value, 100) # Huber rather than MSE to not overfit outlier hands
 
     # Backward pass and optimization
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
 
-    #print(f"Updated model with reward {reward:.2f}, target Q-value {target_q_value:.2f}, terminal={terminal}")
+    print(f"Updated model with reward {reward:.2f}, target Q-value {target_q_value:.2f}, terminal={terminal}")
