@@ -1,0 +1,21 @@
+general util:
+- solving for ideal raise amount
+    - use pot odds or ev formula:
+        - pot odds via our (estimated) equity:
+            make the opponent's pot odds our equity
+            pot_odds = continue_cost / pot_size
+            => equity = raise / (pot_size + raise)
+            raise = pot_size / (1 / equity - 1) (clamp equity to .5 for pot_sized bets, else math.inf)
+
+        - solving via ev (threshold/inequality is optional): (overestimates hand strength, though)
+            ev = (equity * pot_size
+                    + equity * my_bounty_prob * bounty_size
+                    - (1 - equity) * continue_cost
+                    - (1 - equity) * opp_bounty_prob * bounty_size)
+            desmos:
+                y=(q*p+q*m*(p/2+10)-(1-q)*c-(1-q)*o*(p/2+10))
+                (q*(p+c)+q*m*((p+c)/2+10)-(1-q)*r-(1-q)*o*((p+c)/2+10))
+                r=x
+                x=(q*(p+c)+q*m*((p+c)/2+10)-(1-q)*o*((p+c)/2+10))/(1-q)
+
+                r = (q * (p + c) + q * m * ((p + c) / 2 + 10) - (1 - q) * o * ((p + c) / 2 + 10)) / (1 - q)
