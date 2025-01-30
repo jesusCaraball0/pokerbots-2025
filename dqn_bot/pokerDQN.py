@@ -1,30 +1,21 @@
 
 import eval7
 import random
+import math
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from utils import calculate_equity
+from utils import calculate_equity, huber_loss
 from skeleton.states import NUM_ROUNDS, STARTING_STACK, BIG_BLIND, SMALL_BLIND
-
-
-
-# Actions mapping
-# ---------------------------------------------------------------------------------------------------------#
-# ---------------------------------------------------------------------------------------------------------#
-# ---------------------------------------------------------------------------------------------------------#
-# ---------------------------------------------------------------------------------------------------------#
-
-
-# USING A DEEP Q-NETWORK RATHER THAN MLP.
 
 # Define the DQN model
 class PokerDQN(nn.Module):
     def __init__(self, input_size,  output_size):
         # equity class variable
         self.cache = {}
+        self.round_counter = 0
         super(PokerDQN, self).__init__()
 
         # NN architechture
@@ -57,9 +48,6 @@ class PokerDQN(nn.Module):
         Returns:
             torch.Tensor: Preprocessed feature vector.
         """
-        # Example: Placeholder for custom preprocessing logic
-        # features: my_cards, board_cards, my_pip, opp_pip, my_stack, opp_stack, continue_cost, my_bounty, my_contribution,
-        # opp_contribution, street, bankroll, game_clock, hand_equity, pot_odds, Maybe legal_actions
         features = []
 
         # adding numerical representations of my and board cards
@@ -68,14 +56,13 @@ class PokerDQN(nn.Module):
         suits = [(eval7.Card(card).suit / 3) for card in round_state.hands[active]]
 
         board_ranks = [(eval7.Card(card).rank / 14) for card in round_state.deck[:street]]
-        board_suits = [(eval7.Card(card).suit / 3) for card in round_state.deck[:street]] # fix to always have the same size
+        board_suits = [(eval7.Card(card).suit / 3) for card in round_state.deck[:street]]
 
         while len(board_ranks) < 5:
             board_ranks.append(0)
             board_suits.append(0)
 
         # adding my and opp pip, stacks, and contributions
-
         my_pip = round_state.pips[active]  # the number of chips you have contributed to the pot this round of betting
         opp_pip = round_state.pips[1-active]  # the number of chips your opponent has contributed to the pot this round of betting
         my_stack = round_state.stacks[active]  # the number of chips you have remaining
@@ -89,14 +76,17 @@ class PokerDQN(nn.Module):
         my_bounty = eval7.Card(my_bounty).rank / 14
 
         features = ranks + suits + board_ranks + board_suits
-        features.extend([my_pip, opp_pip, my_stack, opp_stack, continue_cost, my_bounty, my_contribution, opp_contribution]) # convert my bounty to numerical
+        features.extend([my_pip, opp_pip, my_stack, opp_stack, continue_cost, my_bounty, my_contribution, opp_contribution])
         features.append(street)
 
         # adding bankroll, game_clock, big and small blinds
         bankroll = game_state.bankroll
         game_clock = game_state.game_clock
 
-        features.extend([bankroll, SMALL_BLIND, BIG_BLIND, game_clock])
+        self.round_counter += 1
+        game_progress = self.round_counter / NUM_ROUNDS
+
+        features.extend([bankroll, SMALL_BLIND, BIG_BLIND, game_progress, game_clock])
 
         # calculating hand equity and pot odds, adding to features
         self.cache, hand_equity = calculate_equity(self.cache, round_state.hands[active])
@@ -104,7 +94,6 @@ class PokerDQN(nn.Module):
             pot_odds = (continue_cost) / (my_contribution + opp_contribution + continue_cost)
         else:
             pot_odds = 0
-
         features.extend([hand_equity, pot_odds])
 
         return torch.tensor(features, dtype=torch.float32)
@@ -175,13 +164,12 @@ def update_model(model, target_model, optimizer, state_vector, action_idx, rewar
             max_next_q_value = torch.max(next_q_values)
             target_q_value = reward + gamma * max_next_q_value
 
-    # Compute loss (Mean Squared Error)
-    criterion = nn.MSELoss()
-    loss = criterion(q_value, target_q_value)
+    # Compute loss
+    loss = huber_loss(q_value, target_q_value, 100) # Huber rather than MSE to handle outlier hands
 
     # Backward pass and optimization
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
 
-    print(f"Updated model with reward {reward:.2f}, target Q-value {target_q_value:.2f}, terminal={terminal}")
+    #print(f"Updated model with reward {reward:.2f}, target Q-value {target_q_value:.2f}, terminal={terminal}")

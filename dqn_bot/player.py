@@ -33,17 +33,17 @@ class Player(Bot):
         Returns:
         Nothing.
         '''
-        self.model = PokerDQN(29, 8)
-        self.target_model = PokerDQN(29, 8)
+        self.model = PokerDQN(30, 8)
+        self.target_model = PokerDQN(30, 8)
         self.round_counter = 0
         self.state_vectors = deque()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.1)
         self.action_id = 0
         self.round_counter = 0
 
         if os.path.exists("DQN_model.pth"):
-            print("model loaded")
             self.model.load_state_dict(torch.load("DQN_model.pth"))
+            print('model loaded')
 
         self.target_model.load_state_dict(self.model.state_dict())
         pass
@@ -60,15 +60,6 @@ class Player(Bot):
         Returns:
         Nothing.
         '''
-        #my_bankroll = game_state.bankroll  # the total number of chips you've gained or lost from the beginning of the game to the start of this round
-        #game_clock = game_state.game_clock  # the total number of seconds your bot has left to play this game
-        #round_num = game_state.round_num  # the round number from 1 to NUM_ROUNDS
-        #my_cards = round_state.hands[active]  # your cards
-        #big_blind = bool(active)  # True if you are the big blind
-        #my_bounty = round_state.bounties[active]  # your current bounty rank
-
-        # maybe save to have future training data
-
         self.state_vectors.clear()
         pass
 
@@ -84,27 +75,17 @@ class Player(Bot):
         Returns:
         Nothing.
         '''
-        #my_delta = terminal_state.deltas[active]  # your bankroll change from this round
-        previous_state = terminal_state.previous_state  # RoundState before payoffs
-        #street = previous_state.street  # 0, 3, 4, or 5 representing when this round ended
-        #my_cards = previous_state.hands[active]  # your cards
-        #opp_cards = previous_state.hands[1-active]  # opponent's cards or [] if not revealed
-
-        my_bounty_hit = terminal_state.bounty_hits[active]  # True if you hit bounty
-        opponent_bounty_hit = terminal_state.bounty_hits[1-active] # True if opponent hit bounty
-        bounty_rank = previous_state.bounties[active]  # your bounty rank
-
-
-
         my_delta = terminal_state.deltas[active]
+        #print(my_delta)
         if len(self.state_vectors) > 0:
             update_model(self.model, self.target_model, self.optimizer, self.state_vectors[-1], self.action_id, my_delta, self.state_vectors[0], 0.95, True)
 
         self.round_counter += 1
-        if self.round_counter % 20 == 0:
+        if self.round_counter % 50 == 0:
             self.target_model.load_state_dict(self.model.state_dict())
 
-        if self.round_counter == NUM_ROUNDS:
+
+        if self.round_counter >= NUM_ROUNDS:
             save_model(self.model, "DQN_model.pth")
 
 
@@ -123,31 +104,57 @@ class Player(Bot):
         '''
         legal_actions = round_state.legal_actions()  # the actions you are allowed to take
         street = round_state.street  # 0, 3, 4, or 5 representing pre-flop, flop, turn, or river respectively
-        my_cards = round_state.hands[active]  # your cards
-        board_cards = round_state.deck[:street]  # the board cards
-        my_pip = round_state.pips[active]  # the number of chips you have contributed to the pot this round of betting
-        opp_pip = round_state.pips[1-active]  # the number of chips your opponent has contributed to the pot this round of betting
-        my_stack = round_state.stacks[active]  # the number of chips you have remaining
-        opp_stack = round_state.stacks[1-active]  # the number of chips your opponent has remaining
-        continue_cost = opp_pip - my_pip  # the number of chips needed to stay in the pot
-        my_bounty = round_state.bounties[active]  # your current bounty rank
-        my_contribution = STARTING_STACK - my_stack  # the number of chips you have contributed to the pot
-        opp_contribution = STARTING_STACK - opp_stack  # the number of chips your opponent has contributed to the pot
 
         action, self.action_id, raise_amount = predict_action(self.model, game_state, round_state, active)
         self.state_vectors.append(self.model.preprocess_state(game_state, round_state, active))
         if street > 0:
-            update_model(self.model, self.target_model, self.optimizer, self.state_vectors[-2], self.action_id, 0, self.state_vectors[-1], 0.95, False)
+            update_model(self.model, self.target_model, self.optimizer, self.state_vectors[-2], self.action_id, 0, self.state_vectors[-1], 0.99, False)
+
+        #print(f'{self.state_vectors[-1].tolist()}_{self.action_id}')
 
         if action == "FoldAction":
             return FoldAction()
-        elif action == "CheckAction":
+        elif action == "CheckAction" and CheckAction in legal_actions:
             return CheckAction()
-        elif action == "CallAction":
+        elif action == "CallAction" and CallAction in legal_actions:
             return CallAction()
-        elif action == "RaiseAction":
+        elif action == "RaiseAction" and RaiseAction in legal_actions:
             return RaiseAction(raise_amount)
+        else:
+            return FoldAction()
+
+
+def train():
+    import ast
+
+    model = PokerDQN(30, 8)
+    target_model = PokerDQN(30, 8)
+    num_epoch = 6
+
+
+    embeds = []
+    delta = 0
+    action_id = 0
+    for i in range(num_epoch):
+        with open('data.txt', 'r') as file:
+            for line in file:
+                if len(line) > 10:
+                    embed, action_id = line[:-1].split('_')
+                    embed = ast.literal_eval(embed)
+                    action_id = int(action_id)
+                    embeds.append(torch.tensor(list(embed), dtype=torch.float32))
+                    if len(embeds) > 1:
+                        update_model(model, target_model, optim.Adam(model.parameters(), lr=0.001), embeds[-2], action_id, embeds[-1], embeds[-1], 0.95, False)
+                elif len(line) < 10:
+                    delta = int(line)
+                    if len(embeds) > 0:
+                        update_model(model, target_model, optim.Adam(model.parameters(), lr=0.001), embeds[-1], action_id, delta, embeds[-1], 0.95, True)
+        print(f'done with epoch {i+1}')
+
+    print('saving model')
+    save_model(model, "DQN_model.pth")
 
 
 if __name__ == '__main__':
+    #train()
     run_bot(Player(), parse_args())

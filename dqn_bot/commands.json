@@ -1,4 +1,4 @@
 {
     "build": [],
-    "run": ["/home/jesuscaraball0/miniconda3/envs/pokerbots-compat/bin/python", "player.py"]
+    "run": ["/home/code_personal/pokerbots/.conda/bin/python", "player.py"]
 }

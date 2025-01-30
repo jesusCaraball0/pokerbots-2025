@@ -33,4 +33,9 @@ def calculate_equity(cache, hand, num_trials=1000):
 
 def save_model(model, filename):
     torch.save(model.state_dict(), filename)
-    print(f"saved model to {filename}")
+    print(f"model saved to {filename}")
+
+def huber_loss(q_value, target_q_value, delta=200):
+    diff = torch.abs(q_value - target_q_value)
+    loss = torch.where(diff <= delta, 0.5*diff**2, delta*(diff-0.5*delta))
+    return loss.mean()
